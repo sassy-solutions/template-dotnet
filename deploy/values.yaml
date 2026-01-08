@@ -1,0 +1,87 @@
+# Helm values for this service
+# These values are used by the dotnet-microservice chart in Infrastructure
+
+app:
+  name: ""  # Will be set by bootstrap workflow
+  environment: "dev"
+  version: "1.0.0"
+
+image:
+  repository: ""  # Will be set by bootstrap workflow (e.g., rg.fr-par.scw.cloud/sassy/accelerate-api)
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets:
+  - name: registry-credentials
+
+replicaCount: 1
+
+# Argo Rollouts canary deployment
+rollout:
+  enabled: true
+  strategy:
+    canary:
+      steps:
+        - setWeight: 20
+        - pause: { duration: 30s }
+        - setWeight: 50
+        - pause: { duration: 30s }
+        - setWeight: 80
+        - pause: { duration: 30s }
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+# Ingress disabled by default - enable when ready for release
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts: []
+  #  - host: service.dev.sassy.solutions
+  #    paths:
+  #      - path: /
+  #        pathType: Prefix
+  tls: []
+  #  - secretName: service-tls
+  #    hosts:
+  #      - service.dev.sassy.solutions
+
+# Tailscale private access
+tailscale:
+  enabled: true
+  # hostname will be auto-generated: {app.name}-{app.environment}
+
+# Autoscaling (disabled by default)
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+
+# Environment variables
+env:
+  - name: ServiceName
+    value: "Template.Api"  # Will be replaced by bootstrap
+
+# Metrics for Prometheus
+metrics:
+  enabled: true
+  port: 8080
+  path: /metrics
+
+serviceMonitor:
+  enabled: true
+  interval: 30s

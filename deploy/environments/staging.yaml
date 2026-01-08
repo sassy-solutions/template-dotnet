@@ -1,0 +1,40 @@
+# Staging environment overrides
+app:
+  environment: "staging"
+
+replicaCount: 2
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+rollout:
+  enabled: true
+  strategy:
+    canary:
+      steps:
+        - setWeight: 25
+        - pause: { duration: 30s }
+        - setWeight: 50
+        - pause: { duration: 30s }
+        - setWeight: 75
+        - pause: { duration: 30s }
+
+ingress:
+  enabled: false  # Enable when ready
+
+tailscale:
+  enabled: true
+
+autoscaling:
+  enabled: false
+
+env:
+  - name: ASPNETCORE_ENVIRONMENT
+    value: "Staging"
+  - name: Logging__LogLevel__Default
+    value: "Information"

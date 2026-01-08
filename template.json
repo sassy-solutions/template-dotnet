@@ -1,0 +1,41 @@
+{
+  "name": "dotnet-microservice-template",
+  "version": "1.0.0",
+  "description": "Template for creating new .NET microservices with full CI/CD and ArgoCD integration",
+  "placeholder": "Template",
+  "variables": {
+    "SERVICE_NAME": {
+      "description": "Name of the service (derived from repository name)",
+      "transform": "PascalCase"
+    },
+    "SERVICE_NAME_LOWER": {
+      "description": "Lowercase service name for K8s resources",
+      "transform": "lowercase"
+    },
+    "SERVICE_NAME_KEBAB": {
+      "description": "Kebab-case service name for URLs",
+      "transform": "kebab-case"
+    }
+  },
+  "files_to_rename": [
+    { "from": "Template.sln", "to": "{{SERVICE_NAME}}.sln" },
+    { "from": "src/Template.Api", "to": "src/{{SERVICE_NAME}}.Api" },
+    { "from": "src/Template.Api/Template.Api.csproj", "to": "src/{{SERVICE_NAME}}.Api/{{SERVICE_NAME}}.Api.csproj" },
+    { "from": "tests/Template.UnitTests", "to": "tests/{{SERVICE_NAME}}.UnitTests" },
+    { "from": "tests/Template.UnitTests/Template.UnitTests.csproj", "to": "tests/{{SERVICE_NAME}}.UnitTests/{{SERVICE_NAME}}.UnitTests.csproj" }
+  ],
+  "files_to_search_replace": [
+    "**/*.cs",
+    "**/*.csproj",
+    "**/*.sln",
+    "**/*.json",
+    "**/*.yaml",
+    "**/*.yml",
+    "**/*.md",
+    "**/Dockerfile"
+  ],
+  "nexus_api_version": "1.0.0",
+  "nexus_base_url": "http://nexus.services.svc.cluster.local",
+  "infrastructure_repo": "sassy-solutions/Infrastructure",
+  "helm_chart_version": "1.0.0"
+}
