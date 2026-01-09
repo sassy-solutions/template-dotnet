@@ -1,0 +1,169 @@
+name: "CD"
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.github/workflows/bootstrap.yml'
+  release:
+    types: [published]
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_NOLOGO: true
+
+jobs:
+  build-and-push:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    # Don't run on template repo
+    if: github.repository != 'sassy-solutions/dotnet-service-template'
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
+      image_full: ${{ steps.build.outputs.image }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract metadata
+        id: meta
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          REGISTRY: ${{ vars.REGISTRY_ENDPOINT }}
+        run: |
+          # Get service name from repo (using env var to avoid injection)
+          SERVICE_NAME="${GITHUB_REPOSITORY##*/}"
+          SERVICE_NAME_KEBAB=$(echo "$SERVICE_NAME" | tr '[:upper:]' '[:lower:]' | tr '_' '-')
+
+          # Determine version tag (using env var to avoid injection)
+          if [ "$EVENT_NAME" = "release" ]; then
+            # Sanitize tag: only allow alphanumeric, dots, hyphens
+            VERSION=$(echo "$RELEASE_TAG" | tr -cd '[:alnum:].-')
+          else
+            VERSION="sha-${GITHUB_SHA::8}"
+          fi
+
+          IMAGE="${REGISTRY}/${SERVICE_NAME_KEBAB}-api"
+
+          echo "service_name=$SERVICE_NAME_KEBAB" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "image=$IMAGE" >> $GITHUB_OUTPUT
+          echo "image_full=${IMAGE}:${VERSION}" >> $GITHUB_OUTPUT
+
+          echo "::notice::Image: ${IMAGE}:${VERSION}"
+
+      - name: Login to Scaleway Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.REGISTRY_ENDPOINT }}
+          username: nologin
+          password: ${{ secrets.SCW_SECRET_KEY }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}
+            ${{ steps.meta.outputs.image }}:latest
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            INFORMATIONAL_VERSION=${{ steps.meta.outputs.version }}+${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Output image
+        run: |
+          echo "image=${{ steps.meta.outputs.image_full }}" >> $GITHUB_OUTPUT
+
+  update-deployment:
+    name: Update Deployment
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.event_name == 'release'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update image tag in values
+        env:
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+        run: |
+          # Update the image tag in deploy/values.yaml
+          sed -i "s|tag: \".*\"|tag: \"${IMAGE_TAG}\"|g" deploy/values.yaml
+
+          # Show the change
+          echo "Updated deploy/values.yaml:"
+          grep -A2 "image:" deploy/values.yaml || true
+
+      - name: Commit and push
+        env:
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add deploy/values.yaml
+          # [skip ci] prevents infinite loop when this commit triggers the workflow again
+          git diff --staged --quiet || git commit -m "chore: update image to ${IMAGE_TAG} [skip ci]"
+          git push
+
+      - name: Summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          # Deployment Update
+
+          ## Image Published
+          \`${{ needs.build-and-push.outputs.image_full }}\`
+
+          ## ArgoCD
+          ArgoCD will automatically detect the change and deploy the new version.
+
+          Monitor deployment:
+          - ArgoCD UI: https://argocd.sassy.solutions
+          - Application: ${{ github.repository }}
+
+          EOF
+
+  deploy-dev:
+    name: Deploy to Dev
+    needs: [build-and-push, update-deployment]
+    runs-on: ubuntu-latest
+    environment: dev
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Trigger ArgoCD Sync
+        run: |
+          # ArgoCD will auto-sync, but we can force it for immediate deployment
+          echo "::notice::ArgoCD will automatically sync the new deployment"
+          echo "::notice::Image: ${{ needs.build-and-push.outputs.image_full }}"
+
+  deploy-prod:
+    name: Deploy to Production
+    needs: [build-and-push, update-deployment]
+    runs-on: ubuntu-latest
+    environment: prod
+    # Only deploy to prod on release
+    if: github.event_name == 'release'
+
+    steps:
+      - name: Production deployment
+        run: |
+          echo "::notice::Production deployment triggered"
+          echo "::notice::Version: ${{ github.event.release.tag_name }}"
+          echo "::notice::Image: ${{ needs.build-and-push.outputs.image_full }}"

@@ -1,0 +1,256 @@
+name: "Bootstrap Repository"
+
+# This workflow runs ONCE when a repo is created from the template
+# It renames all Template references to the actual service name
+# and resets git history to start fresh
+
+on:
+  create:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force re-bootstrap (will reset git history!)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    name: Bootstrap Service
+    runs-on: ubuntu-latest
+    # Only run on main branch creation or manual dispatch
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Check if already bootstrapped
+        id: check
+        run: |
+          # Check if this is a template repo or already bootstrapped
+          if [ "${{ github.repository }}" = "sassy-solutions/dotnet-service-template" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "::notice::This is the template repository, skipping bootstrap"
+            exit 0
+          fi
+
+          # Check for bootstrap marker
+          if [ -f ".bootstrapped" ]; then
+            if [ "${{ github.event.inputs.force }}" != "true" ]; then
+              echo "skip=true" >> $GITHUB_OUTPUT
+              echo "::notice::Repository already bootstrapped"
+              exit 0
+            fi
+          fi
+
+          echo "skip=false" >> $GITHUB_OUTPUT
+
+      - name: Checkout
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract service name
+        if: steps.check.outputs.skip != 'true'
+        id: extract
+        run: |
+          # Get repository name (e.g., "accelerate" from "sassy-solutions/accelerate")
+          REPO_NAME="${{ github.repository }}"
+          SERVICE_NAME_LOWER="${REPO_NAME##*/}"
+
+          # Convert to PascalCase for C# namespaces
+          # e.g., "my-cool-service" -> "MyCoolService"
+          SERVICE_NAME=$(echo "$SERVICE_NAME_LOWER" | sed -r 's/(^|[-_])([a-z])/\U\2/g')
+
+          # Convert to kebab-case for URLs (already lowercase with hyphens)
+          SERVICE_NAME_KEBAB=$(echo "$SERVICE_NAME_LOWER" | tr '_' '-')
+
+          echo "service_name=$SERVICE_NAME" >> $GITHUB_OUTPUT
+          echo "service_name_lower=$SERVICE_NAME_LOWER" >> $GITHUB_OUTPUT
+          echo "service_name_kebab=$SERVICE_NAME_KEBAB" >> $GITHUB_OUTPUT
+
+          echo "::notice::Service Name: $SERVICE_NAME"
+          echo "::notice::Service Name (lower): $SERVICE_NAME_LOWER"
+          echo "::notice::Service Name (kebab): $SERVICE_NAME_KEBAB"
+
+      - name: Rename files and directories
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          SERVICE_NAME="${{ steps.extract.outputs.service_name }}"
+
+          echo "Renaming directories..."
+
+          # Rename test project directory first (deepest)
+          if [ -d "tests/Template.UnitTests" ]; then
+            mv "tests/Template.UnitTests" "tests/${SERVICE_NAME}.UnitTests"
+          fi
+
+          # Rename API project directory
+          if [ -d "src/Template.Api" ]; then
+            mv "src/Template.Api" "src/${SERVICE_NAME}.Api"
+          fi
+
+          echo "Renaming files..."
+
+          # Rename .csproj files
+          find . -name "Template.*.csproj" -type f | while read f; do
+            NEW_NAME=$(echo "$f" | sed "s/Template/${SERVICE_NAME}/g")
+            mv "$f" "$NEW_NAME"
+            echo "Renamed: $f -> $NEW_NAME"
+          done
+
+          # Rename .sln file
+          if [ -f "Template.sln" ]; then
+            mv "Template.sln" "${SERVICE_NAME}.sln"
+            echo "Renamed: Template.sln -> ${SERVICE_NAME}.sln"
+          fi
+
+      - name: Replace placeholders in files
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          SERVICE_NAME="${{ steps.extract.outputs.service_name }}"
+          SERVICE_NAME_LOWER="${{ steps.extract.outputs.service_name_lower }}"
+          SERVICE_NAME_KEBAB="${{ steps.extract.outputs.service_name_kebab }}"
+
+          echo "Replacing 'Template' with '$SERVICE_NAME' in all files..."
+
+          # Replace in all relevant file types
+          find . -type f \( \
+            -name "*.cs" -o \
+            -name "*.csproj" -o \
+            -name "*.sln" -o \
+            -name "*.json" -o \
+            -name "*.yaml" -o \
+            -name "*.yml" -o \
+            -name "*.md" -o \
+            -name "Dockerfile" -o \
+            -name "*.props" \
+          \) ! -path "./.git/*" ! -path "./node_modules/*" | while read f; do
+            # Replace PascalCase Template -> ServiceName
+            sed -i "s/Template/${SERVICE_NAME}/g" "$f"
+            # Replace lowercase template -> service_name_lower
+            sed -i "s/template/${SERVICE_NAME_LOWER}/g" "$f"
+          done
+
+          # Update template.json with actual values
+          if [ -f "template.json" ]; then
+            cat > template.json << EOF
+          {
+            "bootstrapped": true,
+            "bootstrapped_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "service_name": "$SERVICE_NAME",
+            "service_name_lower": "$SERVICE_NAME_LOWER",
+            "service_name_kebab": "$SERVICE_NAME_KEBAB",
+            "source_template": "dotnet-service-template",
+            "template_version": "1.0.0"
+          }
+          EOF
+          fi
+
+          echo "Replacement complete!"
+
+      - name: Update deploy values
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          SERVICE_NAME="${{ steps.extract.outputs.service_name }}"
+          SERVICE_NAME_LOWER="${{ steps.extract.outputs.service_name_lower }}"
+          SERVICE_NAME_KEBAB="${{ steps.extract.outputs.service_name_kebab }}"
+          REGISTRY="${{ vars.REGISTRY_ENDPOINT }}"
+
+          # Update deploy/values.yaml with actual service name
+          if [ -f "deploy/values.yaml" ]; then
+            sed -i "s|name: \"\"|name: \"${SERVICE_NAME_LOWER}\"|g" deploy/values.yaml
+            sed -i "s|repository: \"\"|repository: \"${REGISTRY}/${SERVICE_NAME_KEBAB}-api\"|g" deploy/values.yaml
+          fi
+
+          # Update ArgoCD application
+          if [ -f "deploy/argocd/application.yaml" ]; then
+            sed -i "s|__SERVICE_NAME__|${SERVICE_NAME_LOWER}|g" deploy/argocd/application.yaml
+          fi
+
+      - name: Create bootstrap marker
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          echo "Bootstrapped at $(date -u +"%Y-%m-%dT%H:%M:%SZ")" > .bootstrapped
+          echo "Service: ${{ steps.extract.outputs.service_name }}" >> .bootstrapped
+
+      - name: Reset git history
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          SERVICE_NAME="${{ steps.extract.outputs.service_name }}"
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Remove .git and reinitialize
+          rm -rf .git
+          git init
+          git add .
+          git commit -m "feat: initialize ${SERVICE_NAME} service
+
+          Bootstrapped from dotnet-service-template.
+
+          This is a fresh start - template history has been removed."
+
+          # Force push to main (this overwrites all history!)
+          git branch -M main
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git push -f origin main
+
+          echo "::notice::Git history reset complete"
+
+      - name: Trigger onboarding
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          # Trigger the onboard-service workflow in Infrastructure repo
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            https://api.github.com/repos/sassy-solutions/Infrastructure/actions/workflows/onboard-service.yml/dispatches \
+            -d '{
+              "ref": "main",
+              "inputs": {
+                "service_name": "${{ steps.extract.outputs.service_name_lower }}",
+                "environment": "dev",
+                "enable_ingress": "false",
+                "source_repo": "${{ github.repository }}"
+              }
+            }' || echo "::warning::Could not trigger onboarding workflow"
+
+      - name: Generate summary
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          # Bootstrap Complete
+
+          Your service **${{ steps.extract.outputs.service_name }}** has been initialized!
+
+          ## What happened:
+          - All \`Template\` references renamed to \`${{ steps.extract.outputs.service_name }}\`
+          - Git history reset (fresh start, no template commits)
+          - Onboarding workflow triggered in Infrastructure repo
+
+          ## Next steps:
+          1. Clone your fresh repository
+          2. Open in your IDE and start coding!
+          3. Push changes to trigger CI/CD
+
+          ## Structure:
+          \`\`\`
+          ${{ steps.extract.outputs.service_name }}/
+          ├── src/
+          │   └── ${{ steps.extract.outputs.service_name }}.Api/
+          ├── tests/
+          │   └── ${{ steps.extract.outputs.service_name }}.UnitTests/
+          ├── deploy/
+          └── ${{ steps.extract.outputs.service_name }}.sln
+          \`\`\`
+
+          ## Endpoints (after deployment):
+          - Dev: \`https://${{ steps.extract.outputs.service_name_kebab }}.dev.sassy.solutions\`
+          - Swagger: \`/swagger\`
+          - Health: \`/health\`
+          EOF
