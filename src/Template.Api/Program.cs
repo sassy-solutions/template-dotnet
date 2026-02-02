@@ -6,6 +6,7 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Events;
+using Template.Api.Infrastructure.HealthChecks;
 using Template.Api.Infrastructure.Swagger;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -56,10 +57,13 @@ builder.Logging.AddOpenTelemetry(logging =>
 });
 
 // Health Checks
-builder.Services.AddHealthChecks();
-// Add custom health checks here:
-// .AddCheck<DatabaseHealthCheck>("database")
-// .AddCheck<NexusHealthCheck>("nexus");
+// The "self" check always returns healthy and verifies the app is responsive
+// The "nexus" check is tagged as "ready" to be included in readiness probes
+builder.Services.AddHealthChecks()
+    .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("Application is running"))
+    .AddCheck<NexusHealthCheck>("nexus", tags: new[] { "ready" });
+// Add additional health checks here as needed:
+// .AddCheck<DatabaseHealthCheck>("database", tags: new[] { "ready" })
 
 // API
 builder.Services.AddControllers();
@@ -150,19 +154,26 @@ app.UseRouting();
 // =========================
 // Health Check Endpoints
 // =========================
+
+// Full health check - all registered checks (for monitoring and alerting)
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
     ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
 });
 
+// Liveness probe - only checks if the app is running (no external dependencies)
+// Kubernetes uses this to determine if the pod should be restarted
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
-    Predicate = _ => false // Liveness: just check if app is running
+    Predicate = _ => false, // No checks - just confirm the app responds
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
 });
 
+// Readiness probe - checks critical dependencies (tagged as "ready")
+// Kubernetes uses this to determine if the pod can receive traffic
 app.MapHealthChecks("/health/ready", new HealthCheckOptions
 {
-    // Readiness: check all dependencies
+    Predicate = check => check.Tags.Contains("ready"),
     ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
 });
 
@@ -204,3 +215,6 @@ finally
 {
     Log.CloseAndFlush();
 }
+
+// Make Program class accessible to integration tests
+public partial class Program { }

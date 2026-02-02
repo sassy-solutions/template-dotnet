@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Template.Api.Controllers;
+using Xunit;
 
 namespace Template.UnitTests;
 

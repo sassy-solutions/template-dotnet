@@ -37,6 +37,27 @@ resources:
     cpu: 500m
     memory: 512Mi
 
+# Health check probes
+healthChecks:
+  livenessProbe:
+    enabled: true
+    path: /health/live
+    port: 8080
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 1
+    successThreshold: 1
+    failureThreshold: 3
+  readinessProbe:
+    enabled: true
+    path: /health/ready
+    port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 2
+    successThreshold: 1
+    failureThreshold: 3
+
 service:
   type: ClusterIP
   port: 80
