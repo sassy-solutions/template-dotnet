@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace Template.Api.Controllers;
 
@@ -22,7 +23,20 @@ public class HelloController : ControllerBase
     /// <summary>
     /// Returns a hello world message.
     /// </summary>
+    /// <remarks>
+    /// Sample request:
+    ///
+    ///     GET /api/hello
+    ///
+    /// </remarks>
+    /// <response code="200">Returns the greeting message with timestamp</response>
     [HttpGet]
+    [SwaggerOperation(
+        Summary = "Get hello message",
+        Description = "Returns a simple hello world message with service information",
+        OperationId = "GetHello",
+        Tags = new[] { "Hello" }
+    )]
     [ProducesResponseType<HelloResponse>(StatusCodes.Status200OK)]
     public IActionResult Get()
     {
@@ -41,8 +55,22 @@ public class HelloController : ControllerBase
     /// <summary>
     /// Returns a personalized greeting.
     /// </summary>
-    /// <param name="name">Name to greet</param>
+    /// <param name="name">Name to greet (must not be empty or whitespace)</param>
+    /// <remarks>
+    /// Sample request:
+    ///
+    ///     GET /api/hello/John
+    ///
+    /// </remarks>
+    /// <response code="200">Returns the personalized greeting</response>
+    /// <response code="400">If the name parameter is empty or whitespace</response>
     [HttpGet("{name}")]
+    [SwaggerOperation(
+        Summary = "Get personalized hello message",
+        Description = "Returns a greeting message personalized with the provided name",
+        OperationId = "GetHelloByName",
+        Tags = new[] { "Hello" }
+    )]
     [ProducesResponseType<HelloResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public IActionResult GetByName(string name)
@@ -66,20 +94,34 @@ public class HelloController : ControllerBase
 /// <summary>
 /// Response model for hello endpoints.
 /// </summary>
+/// <example>
+/// {
+///   "message": "Hello from Template.Api!",
+///   "timestamp": "2024-02-02T10:30:00Z",
+///   "environment": "Development"
+/// }
+/// </example>
+[SwaggerSchema(Description = "Response containing a greeting message with service metadata")]
 public record HelloResponse
 {
     /// <summary>
     /// The greeting message.
     /// </summary>
+    /// <example>Hello from Template.Api!</example>
+    [SwaggerSchema(Description = "The personalized or default greeting message")]
     public required string Message { get; init; }
 
     /// <summary>
     /// UTC timestamp of the response.
     /// </summary>
+    /// <example>2024-02-02T10:30:00Z</example>
+    [SwaggerSchema(Description = "ISO 8601 formatted UTC timestamp when the response was generated")]
     public DateTime Timestamp { get; init; }
 
     /// <summary>
     /// Current environment (Development, Staging, Production).
     /// </summary>
+    /// <example>Development</example>
+    [SwaggerSchema(Description = "The environment where the service is running")]
     public required string Environment { get; init; }
 }

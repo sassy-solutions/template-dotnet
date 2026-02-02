@@ -6,6 +6,7 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Events;
+using Template.Api.Infrastructure.Swagger;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -45,7 +46,6 @@ builder.Services.AddOpenTelemetry()
     .WithMetrics(metrics => metrics
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
-        .AddRuntimeInstrumentation()
         .AddOtlpExporter());
 
 builder.Logging.AddOpenTelemetry(logging =>
@@ -70,8 +70,36 @@ builder.Services.AddSwaggerGen(options =>
     {
         Title = serviceName,
         Version = "v1",
-        Description = "API for Template service"
+        Description = "A microservice template for the Sassy Solutions ecosystem. " +
+                     "Provides RESTful APIs with OpenTelemetry observability, health checks, and integration with Nexus platform.",
+        Contact = new()
+        {
+            Name = "Sassy Solutions",
+            Url = new Uri("https://github.com/sassy-solutions")
+        },
+        License = new()
+        {
+            Name = "MIT",
+            Url = new Uri("https://opensource.org/licenses/MIT")
+        }
     });
+
+    // Include XML comments
+    var xmlFilename = $"{typeof(Program).Assembly.GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFilename);
+    if (File.Exists(xmlPath))
+    {
+        options.IncludeXmlComments(xmlPath);
+    }
+
+    // Enable annotations support
+    options.EnableAnnotations();
+
+    // Filter out health check endpoints from Swagger
+    options.DocumentFilter<ExcludeHealthCheckEndpointsFilter>();
+
+    // Add common response types
+    options.OperationFilter<AddCommonResponseTypesFilter>();
 });
 
 // HTTP Client for Nexus and other services
@@ -96,13 +124,26 @@ app.UseSerilogRequestLogging(options =>
     };
 });
 
-// Swagger (available in all environments for API discovery)
+// Swagger JSON spec (available in all environments for API discovery and client generation)
 app.UseSwagger();
-app.UseSwaggerUI(options =>
+
+// Swagger UI (only in Development and Staging for security reasons)
+var enableSwaggerUi = builder.Configuration.GetValue<bool>("Swagger:EnableUI", app.Environment.IsDevelopment());
+if (enableSwaggerUi)
 {
-    options.SwaggerEndpoint("/swagger/v1/swagger.json", $"{serviceName} v1");
-    options.RoutePrefix = "swagger";
-});
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", $"{serviceName} v1");
+        options.RoutePrefix = "swagger";
+        options.DocumentTitle = $"{serviceName} API Documentation";
+        options.DisplayRequestDuration();
+        options.EnableDeepLinking();
+        options.EnableFilter();
+        options.ShowExtensions();
+    });
+
+    Log.Information("Swagger UI enabled at /swagger");
+}
 
 app.UseRouting();
 

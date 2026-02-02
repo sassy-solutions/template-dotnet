@@ -118,6 +118,100 @@ docker compose down
 kubectl port-forward svc/template-api 8080:80 -n template-dev
 ```
 
+## API Documentation
+
+This service provides comprehensive OpenAPI/Swagger documentation for all endpoints.
+
+### Accessing Documentation
+
+**Swagger UI (Interactive)**:
+- **Development**: http://localhost:5000/swagger (enabled by default)
+- **Staging**: https://your-service-staging.sassy.solutions/swagger (enabled)
+- **Production**: Disabled for security (use JSON spec instead)
+
+**OpenAPI JSON Spec** (available in all environments):
+```bash
+# Download the OpenAPI specification
+curl https://your-service.sassy.solutions/swagger/v1/swagger.json > openapi.json
+```
+
+### Generating API Clients
+
+You can auto-generate type-safe clients from the OpenAPI spec:
+
+**TypeScript/JavaScript**:
+```bash
+# Using openapi-generator-cli
+npx @openapitools/openapi-generator-cli generate \
+  -i http://localhost:5000/swagger/v1/swagger.json \
+  -g typescript-fetch \
+  -o ./generated/client
+
+# Using openapi-typescript
+npx openapi-typescript http://localhost:5000/swagger/v1/swagger.json -o types.ts
+```
+
+**C#**:
+```bash
+# Using NSwag
+dotnet tool install -g NSwag.CodeGeneration.CSharp
+nswag openapi2csclient \
+  /input:http://localhost:5000/swagger/v1/swagger.json \
+  /output:GeneratedClient.cs
+```
+
+**Python**:
+```bash
+pip install openapi-generator-cli
+openapi-generator-cli generate \
+  -i http://localhost:5000/swagger/v1/swagger.json \
+  -g python \
+  -o ./generated/client
+```
+
+### Configuration
+
+Control Swagger UI availability per environment in `appsettings.{Environment}.json`:
+
+```json
+{
+  "Swagger": {
+    "EnableUI": true  // false in production for security
+  }
+}
+```
+
+### Documentation Standards
+
+When adding new endpoints, ensure:
+- XML comments on all public methods and models
+- `[ProducesResponseType]` attributes for all response codes
+- `[SwaggerOperation]` for rich metadata
+- `[SwaggerSchema]` on models with examples
+- Parameter descriptions with constraints
+
+Example:
+```csharp
+/// <summary>
+/// Creates a new resource
+/// </summary>
+/// <param name="request">Resource creation request</param>
+/// <response code="201">Resource created successfully</response>
+/// <response code="400">Invalid request data</response>
+[HttpPost]
+[SwaggerOperation(
+    Summary = "Create resource",
+    Description = "Creates a new resource in the system",
+    OperationId = "CreateResource"
+)]
+[ProducesResponseType<ResourceResponse>(StatusCodes.Status201Created)]
+[ProducesResponseType(StatusCodes.Status400BadRequest)]
+public async Task<IActionResult> Create([FromBody] CreateResourceRequest request)
+{
+    // Implementation
+}
+```
+
 ## Observability
 
 - **Logs**: Structured JSON via Serilog
