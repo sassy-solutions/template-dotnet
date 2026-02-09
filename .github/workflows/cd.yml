@@ -15,11 +15,31 @@ env:
   DOTNET_NOLOGO: true
 
 jobs:
+  preflight:
+    name: Preflight Check
+    runs-on: ubuntu-latest
+    outputs:
+      can_deploy: ${{ steps.check.outputs.can_deploy }}
+    steps:
+      - name: Check deployment prerequisites
+        id: check
+        env:
+          REGISTRY: ${{ vars.REGISTRY_ENDPOINT }}
+        run: |
+          if [ -z "$REGISTRY" ]; then
+            echo "can_deploy=false" >> $GITHUB_OUTPUT
+            echo "::warning::CD skipped: REGISTRY_ENDPOINT not configured yet"
+          else
+            echo "can_deploy=true" >> $GITHUB_OUTPUT
+          fi
+
   build-and-push:
     name: Build & Push Image
+    needs: preflight
     runs-on: ubuntu-latest
-    # Don't run on template repo
-    if: github.repository != 'sassy-solutions/dotnet-service-template'
+    if: |
+      needs.preflight.outputs.can_deploy == 'true' &&
+      github.repository != 'sassy-solutions/template-dotnet'
 
     outputs:
       image_tag: ${{ steps.meta.outputs.version }}

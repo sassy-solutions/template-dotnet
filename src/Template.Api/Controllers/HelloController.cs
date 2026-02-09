@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
+using Template.Api.Application.Attributes;
+using Template.Api.Application.Ports;
 
 namespace Template.Api.Controllers;
 
@@ -31,11 +33,12 @@ public class HelloController : ControllerBase
     /// </remarks>
     /// <response code="200">Returns the greeting message with timestamp</response>
     [HttpGet]
+    [NexusTrack("hello")]
     [SwaggerOperation(
         Summary = "Get hello message",
         Description = "Returns a simple hello world message with service information",
         OperationId = "GetHello",
-        Tags = new[] { "Hello" }
+        Tags = ["Hello"]
     )]
     [ProducesResponseType<HelloResponse>(StatusCodes.Status200OK)]
     public IActionResult Get()
@@ -65,11 +68,12 @@ public class HelloController : ControllerBase
     /// <response code="200">Returns the personalized greeting</response>
     /// <response code="400">If the name parameter is empty or whitespace</response>
     [HttpGet("{name}")]
+    [NexusTrack("hello.personalized")]
     [SwaggerOperation(
         Summary = "Get personalized hello message",
         Description = "Returns a greeting message personalized with the provided name",
         OperationId = "GetHelloByName",
-        Tags = new[] { "Hello" }
+        Tags = ["Hello"]
     )]
     [ProducesResponseType<HelloResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -87,6 +91,33 @@ public class HelloController : ControllerBase
             Message = $"Hello, {name}!",
             Timestamp = DateTime.UtcNow,
             Environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Unknown"
+        });
+    }
+    /// <summary>
+    /// Diagnostic: verifies Nexus connectivity and returns usage stats.
+    /// Demonstrates direct INexusClient port usage for orchestration scenarios.
+    /// </summary>
+    [HttpGet("nexus-status")]
+    [SwaggerOperation(
+        Summary = "Check Nexus connectivity",
+        Description = "Verifies the service can communicate with Nexus and returns usage statistics. Shows direct port usage pattern.",
+        OperationId = "GetNexusStatus",
+        Tags = ["Hello"]
+    )]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> NexusStatusAsync(
+        [FromServices] INexusClient nexusClient,
+        CancellationToken cancellationToken)
+    {
+        var healthy = await nexusClient.IsHealthyAsync(cancellationToken);
+        var usage = healthy
+            ? await nexusClient.GetUsageAsync(cancellationToken)
+            : null;
+
+        return Ok(new
+        {
+            nexusConnected = healthy,
+            usage = usage?.IsSuccess == true ? usage.Value : null,
         });
     }
 }

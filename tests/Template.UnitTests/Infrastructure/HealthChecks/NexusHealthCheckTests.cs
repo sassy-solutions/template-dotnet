@@ -2,7 +2,8 @@ using FluentAssertions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using System.Net;
+using NSubstitute.ExceptionExtensions;
+using Template.Api.Application.Ports;
 using Template.Api.Infrastructure.HealthChecks;
 using Xunit;
 
@@ -10,31 +11,22 @@ namespace Template.UnitTests.Infrastructure.HealthChecks;
 
 public class NexusHealthCheckTests
 {
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly INexusClient _nexusClient;
     private readonly ILogger<NexusHealthCheck> _logger;
     private readonly NexusHealthCheck _healthCheck;
-    private readonly HttpMessageHandlerStub _messageHandler;
 
     public NexusHealthCheckTests()
     {
-        _httpClientFactory = Substitute.For<IHttpClientFactory>();
+        _nexusClient = Substitute.For<INexusClient>();
         _logger = Substitute.For<ILogger<NexusHealthCheck>>();
-        _messageHandler = new HttpMessageHandlerStub();
-
-        var httpClient = new HttpClient(_messageHandler)
-        {
-            BaseAddress = new Uri("http://nexus.test")
-        };
-
-        _httpClientFactory.CreateClient("Nexus").Returns(httpClient);
-        _healthCheck = new NexusHealthCheck(_httpClientFactory, _logger);
+        _healthCheck = new NexusHealthCheck(_nexusClient, _logger);
     }
 
     [Fact]
-    public async Task CheckHealthAsync_WhenNexusIsReachable_ReturnsHealthy()
+    public async Task CheckHealthAsync_WhenNexusIsHealthy_ReturnsHealthy()
     {
         // Arrange
-        _messageHandler.ResponseMessage = new HttpResponseMessage(HttpStatusCode.OK);
+        _nexusClient.IsHealthyAsync(Arg.Any<CancellationToken>()).Returns(true);
         var context = new HealthCheckContext();
 
         // Act
@@ -46,10 +38,10 @@ public class NexusHealthCheckTests
     }
 
     [Fact]
-    public async Task CheckHealthAsync_WhenNexusReturnsNonSuccessStatusCode_ReturnsUnhealthy()
+    public async Task CheckHealthAsync_WhenNexusIsUnhealthy_ReturnsUnhealthy()
     {
         // Arrange
-        _messageHandler.ResponseMessage = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+        _nexusClient.IsHealthyAsync(Arg.Any<CancellationToken>()).Returns(false);
         var context = new HealthCheckContext();
 
         // Act
@@ -57,14 +49,15 @@ public class NexusHealthCheckTests
 
         // Assert
         result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("503");
+        result.Description.Should().Contain("not healthy");
     }
 
     [Fact]
-    public async Task CheckHealthAsync_WhenNexusIsUnreachable_ReturnsUnhealthy()
+    public async Task CheckHealthAsync_WhenNexusThrows_ReturnsUnhealthy()
     {
         // Arrange
-        _messageHandler.Exception = new HttpRequestException("Connection refused");
+        _nexusClient.IsHealthyAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(new HttpRequestException("Connection refused"));
         var context = new HealthCheckContext();
 
         // Act
@@ -72,34 +65,20 @@ public class NexusHealthCheckTests
 
         // Assert
         result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Be("Nexus is unreachable");
-        result.Exception.Should().NotBeNull();
+        result.Description.Should().Contain("failed");
         result.Exception.Should().BeOfType<HttpRequestException>();
     }
 
     [Fact]
-    public async Task CheckHealthAsync_WhenRequestTimesOut_ReturnsUnhealthy()
+    public async Task CheckHealthAsync_WhenCancelled_ReturnsUnhealthy()
     {
         // Arrange
-        _messageHandler.DelayResponse = TimeSpan.FromSeconds(5); // Longer than the 2s timeout
         var context = new HealthCheckContext();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
 
-        // Act
-        var result = await _healthCheck.CheckHealthAsync(context);
-
-        // Assert
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("timed out");
-    }
-
-    [Fact]
-    public async Task CheckHealthAsync_WhenCancellationRequested_ReturnsUnhealthy()
-    {
-        // Arrange
-        _messageHandler.DelayResponse = TimeSpan.FromSeconds(10);
-        var context = new HealthCheckContext();
-        var cts = new CancellationTokenSource();
-        cts.Cancel(); // Cancel immediately
+        _nexusClient.IsHealthyAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(new OperationCanceledException());
 
         // Act
         var result = await _healthCheck.CheckHealthAsync(context, cts.Token);
@@ -107,50 +86,5 @@ public class NexusHealthCheckTests
         // Assert
         result.Status.Should().Be(HealthStatus.Unhealthy);
         result.Description.Should().Contain("cancelled");
-    }
-
-    [Fact]
-    public async Task CheckHealthAsync_CallsCorrectEndpoint()
-    {
-        // Arrange
-        _messageHandler.ResponseMessage = new HttpResponseMessage(HttpStatusCode.OK);
-        var context = new HealthCheckContext();
-
-        // Act
-        await _healthCheck.CheckHealthAsync(context);
-
-        // Assert
-        _messageHandler.LastRequest.Should().NotBeNull();
-        _messageHandler.LastRequest!.RequestUri!.PathAndQuery.Should().Be("/health");
-    }
-
-    /// <summary>
-    /// Test double for HttpMessageHandler to intercept HTTP requests in tests
-    /// </summary>
-    private class HttpMessageHandlerStub : HttpMessageHandler
-    {
-        public HttpResponseMessage? ResponseMessage { get; set; }
-        public Exception? Exception { get; set; }
-        public TimeSpan DelayResponse { get; set; } = TimeSpan.Zero;
-        public HttpRequestMessage? LastRequest { get; private set; }
-
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            LastRequest = request;
-
-            if (DelayResponse > TimeSpan.Zero)
-            {
-                await Task.Delay(DelayResponse, cancellationToken);
-            }
-
-            if (Exception != null)
-            {
-                throw Exception;
-            }
-
-            return ResponseMessage ?? new HttpResponseMessage(HttpStatusCode.OK);
-        }
     }
 }

@@ -4,6 +4,8 @@
     <RootNamespace>Template.UnitTests</RootNamespace>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CA1707;CA1001;CA1852;1591;VSTHRD200</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

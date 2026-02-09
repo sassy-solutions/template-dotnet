@@ -1,22 +1,20 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Template.Api.Application.Ports;
 
 namespace Template.Api.Infrastructure.HealthChecks;
 
 /// <summary>
 /// Health check that verifies connectivity to the Nexus platform.
+/// Tagged as "ready" to be included in the readiness probe.
 /// </summary>
-/// <remarks>
-/// This check is tagged as "ready" to be included in the readiness probe.
-/// It attempts to call Nexus's health endpoint to ensure the platform is reachable.
-/// </remarks>
 public class NexusHealthCheck : IHealthCheck
 {
-    private readonly IHttpClientFactory _clientFactory;
+    private readonly INexusClient _nexusClient;
     private readonly ILogger<NexusHealthCheck> _logger;
 
-    public NexusHealthCheck(IHttpClientFactory clientFactory, ILogger<NexusHealthCheck> logger)
+    public NexusHealthCheck(INexusClient nexusClient, ILogger<NexusHealthCheck> logger)
     {
-        _clientFactory = clientFactory;
+        _nexusClient = nexusClient;
         _logger = logger;
     }
 
@@ -26,22 +24,19 @@ public class NexusHealthCheck : IHealthCheck
     {
         try
         {
-            var client = _clientFactory.CreateClient("Nexus");
-
-            // Set a short timeout to avoid blocking the health check
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(2));
 
-            var response = await client.GetAsync("/health", cts.Token);
+            var isHealthy = await _nexusClient.IsHealthyAsync(cts.Token);
 
-            if (response.IsSuccessStatusCode)
+            if (isHealthy)
             {
                 _logger.LogDebug("Nexus health check succeeded");
                 return HealthCheckResult.Healthy("Nexus is reachable");
             }
 
-            _logger.LogWarning("Nexus returned non-success status code: {StatusCode}", response.StatusCode);
-            return HealthCheckResult.Unhealthy($"Nexus returned status code {(int)response.StatusCode}");
+            _logger.LogWarning("Nexus health check returned unhealthy");
+            return HealthCheckResult.Unhealthy("Nexus is not healthy");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -53,14 +48,9 @@ public class NexusHealthCheck : IHealthCheck
             _logger.LogWarning("Nexus health check timed out");
             return HealthCheckResult.Unhealthy("Nexus health check timed out after 2 seconds");
         }
-        catch (HttpRequestException ex)
-        {
-            _logger.LogError(ex, "Nexus health check failed due to HTTP request error");
-            return HealthCheckResult.Unhealthy("Nexus is unreachable", ex);
-        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Nexus health check failed with unexpected error");
+            _logger.LogError(ex, "Nexus health check failed");
             return HealthCheckResult.Unhealthy("Nexus health check failed", ex);
         }
     }

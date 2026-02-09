@@ -6,6 +6,8 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <!-- Suppress overly strict rules for microservice template -->
+    <NoWarn>$(NoWarn);CA1848;CA1305;CA1000;CA1861</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup>

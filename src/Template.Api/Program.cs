@@ -6,7 +6,10 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Events;
+using Template.Api.Application.Filters;
+using Template.Api.Application.Ports;
 using Template.Api.Infrastructure.HealthChecks;
+using Template.Api.Infrastructure.Nexus;
 using Template.Api.Infrastructure.Swagger;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -61,12 +64,15 @@ builder.Logging.AddOpenTelemetry(logging =>
 // The "nexus" check is tagged as "ready" to be included in readiness probes
 builder.Services.AddHealthChecks()
     .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("Application is running"))
-    .AddCheck<NexusHealthCheck>("nexus", tags: new[] { "ready" });
+    .AddCheck<NexusHealthCheck>("nexus", tags: ["ready"]);
 // Add additional health checks here as needed:
 // .AddCheck<DatabaseHealthCheck>("database", tags: new[] { "ready" })
 
 // API
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    options.Filters.AddService<NexusTrackFilter>();
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -106,13 +112,19 @@ builder.Services.AddSwaggerGen(options =>
     options.OperationFilter<AddCommonResponseTypesFilter>();
 });
 
-// HTTP Client for Nexus and other services
-builder.Services.AddHttpClient("Nexus", client =>
+// Nexus SDK — Attribute-based integration ([NexusTrack], [NexusFeature], [NexusAuthorize])
+builder.Services.Configure<NexusClientOptions>(builder.Configuration.GetSection(NexusClientOptions.SectionName));
+builder.Services.AddTransient<NexusApiKeyHandler>();
+builder.Services.AddScoped<NexusTrackFilter>();
+builder.Services.AddHttpClient<INexusClient, NexusClient>(client =>
 {
-    var nexusUrl = builder.Configuration["Nexus:BaseUrl"] ?? "http://nexus.services.svc.cluster.local";
-    client.BaseAddress = new Uri(nexusUrl);
+    var nexusOptions = builder.Configuration
+        .GetSection(NexusClientOptions.SectionName)
+        .Get<NexusClientOptions>() ?? new NexusClientOptions();
+    client.BaseAddress = new Uri(nexusOptions.BaseUrl);
     client.DefaultRequestHeaders.Add("Accept", "application/json");
-});
+    client.Timeout = TimeSpan.FromSeconds(nexusOptions.TimeoutSeconds);
+}).AddHttpMessageHandler<NexusApiKeyHandler>();
 
 var app = builder.Build();
 

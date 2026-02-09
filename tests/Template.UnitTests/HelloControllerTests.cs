@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Template.Api.Application.Ports;
 using Template.Api.Controllers;
+using Template.Api.Infrastructure.Nexus.Dto;
 using Xunit;
 
 namespace Template.UnitTests;
@@ -71,5 +73,37 @@ public class HelloControllerTests
 
         // Assert
         result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task NexusStatusAsync_WhenHealthy_ReturnsUsage()
+    {
+        // Arrange
+        var nexusClient = Substitute.For<INexusClient>();
+        nexusClient.IsHealthyAsync(Arg.Any<CancellationToken>()).Returns(true);
+        nexusClient.GetUsageAsync(Arg.Any<CancellationToken>())
+            .Returns(NexusResult<UsageResponse>.Success(
+                new UsageResponse("org-1", 42, [new UsageEvent("hello", 42)])));
+
+        // Act
+        var result = await _controller.NexusStatusAsync(nexusClient, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+    }
+
+    [Fact]
+    public async Task NexusStatusAsync_WhenUnhealthy_ReturnsDisconnected()
+    {
+        // Arrange
+        var nexusClient = Substitute.For<INexusClient>();
+        nexusClient.IsHealthyAsync(Arg.Any<CancellationToken>()).Returns(false);
+
+        // Act
+        var result = await _controller.NexusStatusAsync(nexusClient, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        await nexusClient.DidNotReceive().GetUsageAsync(Arg.Any<CancellationToken>());
     }
 }

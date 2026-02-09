@@ -43,7 +43,7 @@ public class SwaggerFiltersTests
         var filter = new AddCommonResponseTypesFilter();
         var operation = new OpenApiOperation
         {
-            Responses = new OpenApiResponses()
+            Responses = []
         };
 
         var context = CreateOperationFilterContext();

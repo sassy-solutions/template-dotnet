@@ -1,7 +1,7 @@
 {
   "name": "dotnet-microservice-template",
-  "version": "1.0.0",
-  "description": "Template for creating new .NET microservices with full CI/CD and ArgoCD integration",
+  "version": "2.0.0",
+  "description": "Template for creating .NET microservices with hexagonal architecture, Nexus SDK, and full CI/CD",
   "placeholder": "Template",
   "variables": {
     "SERVICE_NAME": {
@@ -35,7 +35,7 @@
     "**/Dockerfile"
   ],
   "nexus_api_version": "1.0.0",
-  "nexus_base_url": "http://nexus.services.svc.cluster.local",
+  "nexus_base_url": "http://nexus-api.nexus-live.svc.cluster.local",
   "infrastructure_repo": "sassy-solutions/Infrastructure",
   "helm_chart_version": "1.0.0"
 }

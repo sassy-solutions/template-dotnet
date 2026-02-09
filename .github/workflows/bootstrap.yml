@@ -5,7 +5,6 @@ name: "Bootstrap Repository"
 # and resets git history to start fresh
 
 on:
-  create:
   workflow_dispatch:
     inputs:
       force:
@@ -28,7 +27,7 @@ jobs:
         id: check
         run: |
           # Check if this is a template repo or already bootstrapped
-          if [ "${{ github.repository }}" = "sassy-solutions/dotnet-service-template" ]; then
+          if [ "${{ github.repository }}" = "sassy-solutions/template-dotnet" ]; then
             echo "skip=true" >> $GITHUB_OUTPUT
             echo "::notice::This is the template repository, skipping bootstrap"
             exit 0
