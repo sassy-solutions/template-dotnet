@@ -5,6 +5,9 @@ name: "Bootstrap Repository"
 # and resets git history to start fresh
 
 on:
+  # Auto-trigger on first push when repo is created from template
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       force:
@@ -23,17 +26,23 @@ jobs:
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Check if already bootstrapped
         id: check
         run: |
-          # Check if this is a template repo or already bootstrapped
+          # Check if this is the template repo itself
           if [ "${{ github.repository }}" = "sassy-solutions/template-dotnet" ]; then
             echo "skip=true" >> $GITHUB_OUTPUT
             echo "::notice::This is the template repository, skipping bootstrap"
             exit 0
           fi
 
-          # Check for bootstrap marker
+          # Check for bootstrap marker (prevents re-running after force push)
           if [ -f ".bootstrapped" ]; then
             if [ "${{ github.event.inputs.force }}" != "true" ]; then
               echo "skip=true" >> $GITHUB_OUTPUT
@@ -43,13 +52,6 @@ jobs:
           fi
 
           echo "skip=false" >> $GITHUB_OUTPUT
-
-      - name: Checkout
-        if: steps.check.outputs.skip != 'true'
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract service name
         if: steps.check.outputs.skip != 'true'
