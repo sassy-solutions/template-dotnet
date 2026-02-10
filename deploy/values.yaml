@@ -112,5 +112,5 @@ metrics:
   path: /metrics
 
 serviceMonitor:
-  enabled: true
+  enabled: false
   interval: 30s
