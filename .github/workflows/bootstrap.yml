@@ -17,7 +17,6 @@ on:
 
 permissions:
   contents: write
-  workflows: write
 
 jobs:
   bootstrap:
@@ -178,32 +177,23 @@ jobs:
           echo "Bootstrapped at $(date -u +"%Y-%m-%dT%H:%M:%SZ")" > .bootstrapped
           echo "Service: ${{ steps.extract.outputs.service_name }}" >> .bootstrapped
 
-      - name: Reset git history
+      - name: Commit and push changes
         if: steps.check.outputs.skip != 'true'
         run: |
           SERVICE_NAME="${{ steps.extract.outputs.service_name }}"
 
-          # Remove .git and reinitialize
-          rm -rf .git
-          git init
-
-          # Configure git AFTER init (old config is lost with rm -rf .git)
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add .
-          git commit -m "feat: initialize ${SERVICE_NAME} service
+          git add -A
+          git commit -m "feat: bootstrap ${SERVICE_NAME} from template
 
-          Bootstrapped from dotnet-service-template.
+          All Template references renamed to ${SERVICE_NAME}.
+          Bootstrapped from dotnet-service-template."
 
-          This is a fresh start - template history has been removed."
+          git push origin main
 
-          # Force push to main (this overwrites all history!)
-          git branch -M main
-          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
-          git push -f origin main
-
-          echo "::notice::Git history reset complete"
+          echo "::notice::Bootstrap commit pushed"
 
       - name: Trigger onboarding
         if: steps.check.outputs.skip != 'true'
