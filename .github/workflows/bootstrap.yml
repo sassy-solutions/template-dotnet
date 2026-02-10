@@ -132,10 +132,10 @@ jobs:
             -name "Dockerfile" -o \
             -name "*.props" \
           \) ! -path "./.git/*" ! -path "./.github/*" ! -path "./node_modules/*" | while read f; do
-            # Replace PascalCase Template -> ServiceName
-            sed -i "s/Template/${SERVICE_NAME}/g" "$f"
+            # Replace PascalCase Template -> ServiceName (word boundaries prevent matching substrings like outputTemplate)
+            sed -i "s/\bTemplate\b/${SERVICE_NAME}/g" "$f"
             # Replace lowercase template -> service_name_lower
-            sed -i "s/template/${SERVICE_NAME_LOWER}/g" "$f"
+            sed -i "s/\btemplate\b/${SERVICE_NAME_LOWER}/g" "$f"
           done
 
           # Update template.json with actual values
