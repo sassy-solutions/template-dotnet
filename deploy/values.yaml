@@ -107,7 +107,7 @@ env:
 
 # Metrics for Prometheus
 metrics:
-  enabled: true
+  enabled: false  # Disabled: same port as http (8080) causes duplicate port error
   port: 8080
   path: /metrics
 
