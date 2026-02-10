@@ -118,6 +118,7 @@ jobs:
           echo "Replacing 'Template' with '$SERVICE_NAME' in all files..."
 
           # Replace in all relevant file types
+          # IMPORTANT: Exclude .github/ — GITHUB_TOKEN cannot push workflow file changes
           find . -type f \( \
             -name "*.cs" -o \
             -name "*.csproj" -o \
@@ -128,7 +129,7 @@ jobs:
             -name "*.md" -o \
             -name "Dockerfile" -o \
             -name "*.props" \
-          \) ! -path "./.git/*" ! -path "./node_modules/*" | while read f; do
+          \) ! -path "./.git/*" ! -path "./.github/*" ! -path "./node_modules/*" | while read f; do
             # Replace PascalCase Template -> ServiceName
             sed -i "s/Template/${SERVICE_NAME}/g" "$f"
             # Replace lowercase template -> service_name_lower
