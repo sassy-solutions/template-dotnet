@@ -17,6 +17,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   bootstrap:
@@ -173,6 +174,18 @@ jobs:
           if [ -f "deploy/argocd/application.yaml" ]; then
             sed -i "s|__SERVICE_NAME__|${SERVICE_NAME_LOWER}|g" deploy/argocd/application.yaml
           fi
+
+      - name: Setup .NET
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Fix import ordering
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          dotnet format --verbosity minimal
+          echo "::notice::Import ordering fixed after rename"
 
       - name: Create bootstrap marker
         if: steps.check.outputs.skip != 'true'

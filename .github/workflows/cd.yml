@@ -19,8 +19,28 @@ env:
   DOTNET_NOLOGO: true
 
 jobs:
+  check-bootstrap:
+    name: Check Bootstrap
+    runs-on: ubuntu-latest
+    outputs:
+      bootstrapped: ${{ steps.check.outputs.bootstrapped }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .bootstrapped
+      - id: check
+        run: |
+          if [ -f .bootstrapped ]; then
+            echo "bootstrapped=true" >> $GITHUB_OUTPUT
+          else
+            echo "::notice::Not yet bootstrapped — skipping CD"
+            echo "bootstrapped=false" >> $GITHUB_OUTPUT
+          fi
+
   preflight:
     name: Preflight Check
+    needs: check-bootstrap
+    if: needs.check-bootstrap.outputs.bootstrapped == 'true'
     runs-on: ubuntu-latest
     outputs:
       can_deploy: ${{ steps.check.outputs.can_deploy }}
