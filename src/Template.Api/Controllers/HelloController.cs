@@ -94,6 +94,20 @@ public class HelloController : ControllerBase
         });
     }
     /// <summary>
+    /// Marco/Polo — simple ping endpoint to verify routing works end-to-end.
+    /// </summary>
+    [HttpGet("/api/marco")]
+    [NexusTrack("marco")]
+    [SwaggerOperation(
+        Summary = "Marco Polo ping",
+        Description = "Returns 'polo' — used to verify the full routing chain",
+        OperationId = "Marco",
+        Tags = ["Hello"]
+    )]
+    [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
+    public IActionResult Marco() => Ok("polo");
+
+    /// <summary>
     /// Diagnostic: verifies Nexus connectivity and returns usage stats.
     /// Demonstrates direct INexusClient port usage for orchestration scenarios.
     /// </summary>

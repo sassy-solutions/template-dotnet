@@ -65,7 +65,7 @@ jobs:
           # e.g., "my-cool-service" -> "MyCoolService", "app-6" -> "App6"
           # Step 1: Capitalize letters after hyphens/underscores
           # Step 2: Remove remaining hyphens/underscores (e.g., before digits)
-          SERVICE_NAME=$(echo "$SERVICE_NAME_LOWER" | sed -r 's/(^|[-_])([a-z])/\U\2/g' | tr -d '-_')
+          SERVICE_NAME=$(echo "$SERVICE_NAME_LOWER" | sed -r 's/(^|[-_])([a-z])/\U\2/g' | sed 's/[-_]//g')
 
           # Convert to kebab-case for URLs (already lowercase with hyphens)
           SERVICE_NAME_KEBAB=$(echo "$SERVICE_NAME_LOWER" | tr '_' '-')

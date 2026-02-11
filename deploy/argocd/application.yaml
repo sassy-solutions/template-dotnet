@@ -1,5 +1,6 @@
-# ArgoCD Application definition
+# ArgoCD Application definition (multi-source)
 # This file tells ArgoCD how to deploy this service
+# Uses multi-source: app repo values + Infrastructure Helm chart
 
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -14,21 +15,19 @@ metadata:
 spec:
   project: default
 
-  source:
-    # Use the generic Helm chart from Infrastructure repo
-    repoURL: https://github.com/sassy-solutions/Infrastructure.git
-    targetRevision: HEAD
-    path: helm/charts/dotnet-microservice
+  sources:
+    # Source 1: This repo (provides deploy/values.yaml)
+    - repoURL: https://github.com/sassy-solutions/__SERVICE_NAME__.git
+      targetRevision: HEAD
+      ref: values
 
-    helm:
-      # Merge values from this repo with the chart
-      valueFiles:
-        # Base values from the chart
-        - values.yaml
-      # Override with this service's values
-      values: |
-        # Import values from this repository
-        # ArgoCD will fetch deploy/values.yaml from this repo
+    # Source 2: Infrastructure Helm chart
+    - repoURL: https://github.com/sassy-solutions/Infrastructure.git
+      targetRevision: HEAD
+      path: helm/charts/dotnet-microservice
+      helm:
+        valueFiles:
+          - $values/deploy/values.yaml
 
   destination:
     server: https://kubernetes.default.svc
@@ -38,7 +37,6 @@ spec:
     automated:
       prune: true
       selfHeal: true
-      allowEmpty: false
     syncOptions:
       - CreateNamespace=true
       - PrunePropagationPolicy=foreground
@@ -50,7 +48,6 @@ spec:
         factor: 2
         maxDuration: 3m
 
-  # Health checks
   ignoreDifferences:
     - group: apps
       kind: Deployment
@@ -60,33 +57,3 @@ spec:
       kind: Rollout
       jsonPointers:
         - /spec/replicas
-
----
-# Application for fetching values from this repo
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: __SERVICE_NAME__-config
-  namespace: argocd
-  labels:
-    app.kubernetes.io/name: __SERVICE_NAME__
-    app.kubernetes.io/component: config
-spec:
-  project: default
-
-  source:
-    repoURL: https://github.com/sassy-solutions/__SERVICE_NAME__.git
-    targetRevision: HEAD
-    path: deploy
-    directory:
-      recurse: false
-      include: 'values.yaml'
-
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: __SERVICE_NAME__-dev
-
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
