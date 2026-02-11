@@ -198,6 +198,16 @@ jobs:
 
           echo "::notice::Bootstrap commit pushed"
 
+      - name: Trigger CD
+        if: steps.check.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Waiting for push to propagate..."
+          sleep 5
+          gh workflow run cd.yml --ref main
+          echo "::notice::CD workflow dispatched"
+
       - name: Trigger onboarding
         if: steps.check.outputs.skip != 'true'
         run: |

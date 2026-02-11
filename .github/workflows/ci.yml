@@ -17,8 +17,28 @@ env:
   DOTNET_NOLOGO: true
 
 jobs:
+  check-bootstrap:
+    name: Check Bootstrap
+    runs-on: ubuntu-latest
+    outputs:
+      bootstrapped: ${{ steps.check.outputs.bootstrapped }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .bootstrapped
+      - id: check
+        run: |
+          if [ -f .bootstrapped ]; then
+            echo "bootstrapped=true" >> $GITHUB_OUTPUT
+          else
+            echo "::notice::Not yet bootstrapped — skipping CI"
+            echo "bootstrapped=false" >> $GITHUB_OUTPUT
+          fi
+
   build:
     name: Build & Test
+    needs: check-bootstrap
+    if: needs.check-bootstrap.outputs.bootstrapped == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -54,6 +74,8 @@ jobs:
 
   lint:
     name: Lint & Format
+    needs: check-bootstrap
+    if: needs.check-bootstrap.outputs.bootstrapped == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -70,8 +92,9 @@ jobs:
 
   security:
     name: Security Scan
+    needs: check-bootstrap
+    if: needs.check-bootstrap.outputs.bootstrapped == 'true' && vars.SKIP_SECURITY_SCAN != 'true'
     runs-on: ubuntu-latest
-    if: vars.SKIP_SECURITY_SCAN != 'true'
 
     steps:
       - name: Checkout
