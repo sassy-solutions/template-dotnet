@@ -207,7 +207,7 @@ jobs:
           All Template references renamed to ${SERVICE_NAME}.
           Bootstrapped from dotnet-service-template."
 
-          git push origin main
+          git pull --rebase origin main && git push origin main
 
           echo "::notice::Bootstrap commit pushed"
 
