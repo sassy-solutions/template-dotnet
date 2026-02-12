@@ -164,7 +164,7 @@ jobs:
           git add deploy/values.yaml
           # [skip ci] prevents infinite loop when this commit triggers the workflow again
           git diff --staged --quiet || git commit -m "chore: update image to ${IMAGE_TAG} [skip ci]"
-          git push
+          git pull --rebase origin main && git push
 
       - name: Summary
         run: |
