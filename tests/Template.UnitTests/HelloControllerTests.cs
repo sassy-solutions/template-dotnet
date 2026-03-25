@@ -2,10 +2,9 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Nexus.Sdk.Client;
 using NSubstitute;
-using Template.Api.Application.Ports;
 using Template.Api.Controllers;
-using Template.Api.Infrastructure.Nexus.Dto;
 using Xunit;
 
 namespace Template.UnitTests;
@@ -76,14 +75,11 @@ public class HelloControllerTests
     }
 
     [Fact]
-    public async Task NexusStatusAsync_WhenHealthy_ReturnsUsage()
+    public async Task NexusStatusAsync_WhenHealthy_ReturnsConnected()
     {
         // Arrange
         var nexusClient = Substitute.For<INexusClient>();
         nexusClient.IsHealthyAsync(Arg.Any<CancellationToken>()).Returns(true);
-        nexusClient.GetUsageAsync(Arg.Any<CancellationToken>())
-            .Returns(NexusResult<UsageResponse>.Success(
-                new UsageResponse("org-1", 42, [new UsageEvent("hello", 42)])));
 
         // Act
         var result = await _controller.NexusStatusAsync(nexusClient, CancellationToken.None);
@@ -104,6 +100,5 @@ public class HelloControllerTests
 
         // Assert
         result.Should().BeOfType<OkObjectResult>();
-        await nexusClient.DidNotReceive().GetUsageAsync(Arg.Any<CancellationToken>());
     }
 }

@@ -15,6 +15,9 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
     <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="7.2.0" />
 
+    <!-- Nexus SDK -->
+    <PackageReference Include="Nexus.Sdk" Version="1.0.0" />
+
     <!-- Health Checks -->
     <PackageReference Include="AspNetCore.HealthChecks.UI.Client" Version="8.0.1" />
 

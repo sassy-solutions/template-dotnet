@@ -1,15 +1,12 @@
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Nexus.Sdk;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Events;
-using Template.Api.Application.Filters;
-using Template.Api.Application.Ports;
-using Template.Api.Infrastructure.HealthChecks;
-using Template.Api.Infrastructure.Nexus;
 using Template.Api.Infrastructure.Swagger;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -61,17 +58,16 @@ builder.Logging.AddOpenTelemetry(logging =>
 
 // Health Checks
 // The "self" check always returns healthy and verifies the app is responsive
-// The "nexus" check is tagged as "ready" to be included in readiness probes
+// Nexus health check is registered automatically by AddNexus() below (tagged as "ready")
 builder.Services.AddHealthChecks()
-    .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("Application is running"))
-    .AddCheck<NexusHealthCheck>("nexus", tags: ["ready"]);
+    .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("Application is running"));
 // Add additional health checks here as needed:
 // .AddCheck<DatabaseHealthCheck>("database", tags: new[] { "ready" })
 
 // API
 builder.Services.AddControllers(options =>
 {
-    options.Filters.AddService<NexusTrackFilter>();
+    options.Filters.AddNexusFilters();
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -112,19 +108,8 @@ builder.Services.AddSwaggerGen(options =>
     options.OperationFilter<AddCommonResponseTypesFilter>();
 });
 
-// Nexus SDK — Attribute-based integration ([NexusTrack], [NexusFeature], [NexusAuthorize])
-builder.Services.Configure<NexusClientOptions>(builder.Configuration.GetSection(NexusClientOptions.SectionName));
-builder.Services.AddTransient<NexusApiKeyHandler>();
-builder.Services.AddScoped<NexusTrackFilter>();
-builder.Services.AddHttpClient<INexusClient, NexusClient>(client =>
-{
-    var nexusOptions = builder.Configuration
-        .GetSection(NexusClientOptions.SectionName)
-        .Get<NexusClientOptions>() ?? new NexusClientOptions();
-    client.BaseAddress = new Uri(nexusOptions.BaseUrl);
-    client.DefaultRequestHeaders.Add("Accept", "application/json");
-    client.Timeout = TimeSpan.FromSeconds(nexusOptions.TimeoutSeconds);
-}).AddHttpMessageHandler<NexusApiKeyHandler>();
+// Nexus SDK — one-liner setup for features, tracking, billing, config, health
+builder.Services.AddNexus(builder.Configuration);
 
 var app = builder.Build();
 

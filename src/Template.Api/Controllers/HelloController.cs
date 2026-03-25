@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
+using Nexus.Sdk.Attributes;
+using Nexus.Sdk.Client;
 using Swashbuckle.AspNetCore.Annotations;
-using Template.Api.Application.Attributes;
-using Template.Api.Application.Ports;
 
 namespace Template.Api.Controllers;
 
@@ -34,6 +34,7 @@ public class HelloController : ControllerBase
     /// <response code="200">Returns the greeting message with timestamp</response>
     [HttpGet]
     [NexusTrack("hello")]
+    [NexusFeature("hello")]
     [SwaggerOperation(
         Summary = "Get hello message",
         Description = "Returns a simple hello world message with service information",
@@ -108,13 +109,13 @@ public class HelloController : ControllerBase
     public IActionResult Marco() => Ok("polo");
 
     /// <summary>
-    /// Diagnostic: verifies Nexus connectivity and returns usage stats.
-    /// Demonstrates direct INexusClient port usage for orchestration scenarios.
+    /// Diagnostic: verifies Nexus connectivity.
+    /// Demonstrates direct INexusClient usage from the Nexus.Sdk package.
     /// </summary>
     [HttpGet("nexus-status")]
     [SwaggerOperation(
         Summary = "Check Nexus connectivity",
-        Description = "Verifies the service can communicate with Nexus and returns usage statistics. Shows direct port usage pattern.",
+        Description = "Verifies the service can communicate with Nexus.",
         OperationId = "GetNexusStatus",
         Tags = ["Hello"]
     )]
@@ -124,15 +125,7 @@ public class HelloController : ControllerBase
         CancellationToken cancellationToken)
     {
         var healthy = await nexusClient.IsHealthyAsync(cancellationToken);
-        var usage = healthy
-            ? await nexusClient.GetUsageAsync(cancellationToken)
-            : null;
-
-        return Ok(new
-        {
-            nexusConnected = healthy,
-            usage = usage?.IsSuccess == true ? usage.Value : null,
-        });
+        return Ok(new { nexusConnected = healthy });
     }
 }
 
