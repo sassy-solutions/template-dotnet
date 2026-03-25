@@ -43,7 +43,7 @@ RUN dotnet test --no-restore --verbosity normal --collect:"XPlat Code Coverage"
 # =========================
 # Runtime Stage
 # =========================
-FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
 
 # Security: Create non-root user and install curl for healthcheck
 RUN addgroup -g 1000 appgroup && \
