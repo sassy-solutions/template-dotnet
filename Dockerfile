@@ -7,11 +7,17 @@ WORKDIR /src
 # Copy solution and project files first (better layer caching)
 COPY *.sln ./
 COPY Directory.Build.props ./
+COPY nuget.config ./
 COPY src/Template.Api/*.csproj ./src/Template.Api/
 COPY tests/Template.UnitTests/*.csproj ./tests/Template.UnitTests/
 
-# Restore dependencies
-RUN dotnet restore
+# Restore dependencies (authenticate GitHub Packages via build secret)
+RUN --mount=type=secret,id=github_token \
+    TOKEN=$(cat /run/secrets/github_token 2>/dev/null) && \
+    if [ -n "$TOKEN" ]; then \
+      dotnet nuget update source github -u sassy-solutions -p "$TOKEN" --store-password-in-clear-text --configfile nuget.config; \
+    fi && \
+    dotnet restore
 
 # Copy all source code
 COPY . .

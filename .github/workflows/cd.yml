@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  packages: read
 
 env:
   DOTNET_VERSION: '9.0.x'
@@ -125,6 +126,8 @@ jobs:
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
             INFORMATIONAL_VERSION=${{ steps.meta.outputs.version }}+${{ github.sha }}
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
