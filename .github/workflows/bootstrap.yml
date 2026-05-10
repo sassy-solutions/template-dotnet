@@ -188,9 +188,18 @@ jobs:
 
       - name: Fix import ordering
         if: steps.check.outputs.skip != 'true'
+        # Cosmetic step: re-orders imports after the Template→<service> rename
+        # changes namespace prefixes. Non-fatal — `dotnet format` requires a
+        # successful `restore` and can flake on transient NuGet auth issues; we
+        # don't want a cosmetic format step to block the bootstrap and leave the
+        # downstream `deploy/values.yaml` un-substituted (which makes the K8s
+        # pod start with `image: :latest` → InvalidImageName, the failure mode
+        # observed live on 2026-05-10). The repo's normal CI pipeline still
+        # enforces format on PRs, so any drift here gets caught later.
+        continue-on-error: true
         run: |
           dotnet format --verbosity minimal
-          echo "::notice::Import ordering fixed after rename"
+          echo "::notice::Import ordering fix attempted (non-fatal)"
 
       - name: Create bootstrap marker
         if: steps.check.outputs.skip != 'true'
