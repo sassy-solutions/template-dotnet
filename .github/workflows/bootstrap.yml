@@ -23,7 +23,7 @@ permissions:
 jobs:
   bootstrap:
     name: Bootstrap Service
-    runs-on: ubuntu-latest
+    runs-on: dotnet
     # Only run on main branch creation or manual dispatch
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
 
