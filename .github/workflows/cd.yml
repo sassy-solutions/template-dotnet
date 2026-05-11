@@ -22,7 +22,7 @@ env:
 jobs:
   check-bootstrap:
     name: Check Bootstrap
-    runs-on: ubuntu-latest
+    runs-on: dotnet
     outputs:
       bootstrapped: ${{ steps.check.outputs.bootstrapped }}
     steps:
@@ -42,7 +42,7 @@ jobs:
     name: Preflight Check
     needs: check-bootstrap
     if: needs.check-bootstrap.outputs.bootstrapped == 'true'
-    runs-on: ubuntu-latest
+    runs-on: dotnet
     outputs:
       can_deploy: ${{ steps.check.outputs.can_deploy }}
     steps:
@@ -61,7 +61,7 @@ jobs:
   build-and-push:
     name: Build & Push Image
     needs: preflight
-    runs-on: ubuntu-latest
+    runs-on: dotnet
     if: |
       needs.preflight.outputs.can_deploy == 'true' &&
       github.repository != 'sassy-solutions/template-dotnet'
@@ -139,7 +139,7 @@ jobs:
   update-deployment:
     name: Update Deployment
     needs: build-and-push
-    runs-on: ubuntu-latest
+    runs-on: dotnet
     if: github.ref == 'refs/heads/main' || github.event_name == 'release'
 
     steps:
@@ -189,7 +189,7 @@ jobs:
   deploy-dev:
     name: Deploy to Dev
     needs: [build-and-push, update-deployment]
-    runs-on: ubuntu-latest
+    runs-on: dotnet
     environment: dev
     if: github.ref == 'refs/heads/main'
 
@@ -203,7 +203,7 @@ jobs:
   deploy-prod:
     name: Deploy to Production
     needs: [build-and-push, update-deployment]
-    runs-on: ubuntu-latest
+    runs-on: dotnet
     environment: prod
     # Only deploy to prod on release
     if: github.event_name == 'release'
