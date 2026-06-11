@@ -1,0 +1,20 @@
+# Binds the deployer-managed env Secret for the "production" environment.
+# Secret name contract: app-{name}-{envSlug}-env
+# (created/replaced by the platform before each ArgoCD sync).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-__APP_NAME__
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          envFrom:
+            - secretRef:
+                name: app-__APP_NAME__-production-env
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Production
+            - name: Nexus__Environment
+              value: production

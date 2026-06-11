@@ -1,0 +1,11 @@
+# Overlay for the "dev" environment.
+# The directory name MUST equal the Nexus environment slug — the platform
+# points ArgoCD at `.nexus/manifests/{envSlug}`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../base
+
+patches:
+  - path: patch-deployment.yaml

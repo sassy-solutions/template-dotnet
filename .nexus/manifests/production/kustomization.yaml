@@ -1,0 +1,12 @@
+# Overlay for the "production" environment.
+# The directory name MUST equal the Nexus environment slug — the platform
+# points ArgoCD at `.nexus/manifests/{envSlug}`. "production" (not "prod")
+# is the slug the platform special-cases for URL routing.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../base
+
+patches:
+  - path: patch-deployment.yaml

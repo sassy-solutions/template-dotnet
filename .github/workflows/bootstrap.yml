@@ -123,6 +123,9 @@ jobs:
 
           # Replace in all relevant file types
           # IMPORTANT: Exclude .github/ — GITHUB_TOKEN cannot push workflow file changes
+          # IMPORTANT: Exclude .nexus/ — K8s manifests contain `spec.template:` keys
+          # that the word-boundary sed would corrupt; they use explicit
+          # __APP_NAME__ / __IMAGE_REPOSITORY__ tokens substituted below instead.
           find . -type f \( \
             -name "*.cs" -o \
             -name "*.csproj" -o \
@@ -133,7 +136,7 @@ jobs:
             -name "*.md" -o \
             -name "Dockerfile" -o \
             -name "*.props" \
-          \) ! -path "./.git/*" ! -path "./.github/*" ! -path "./node_modules/*" | while read f; do
+          \) ! -path "./.git/*" ! -path "./.github/*" ! -path "./.nexus/*" ! -path "./node_modules/*" | while read f; do
             # Replace PascalCase Template -> ServiceName (word boundaries prevent matching substrings like outputTemplate)
             sed -i "s/\bTemplate\b/${SERVICE_NAME}/g" "$f"
             # Replace lowercase template -> service_name_lower
@@ -174,6 +177,18 @@ jobs:
           # Update ArgoCD application
           if [ -f "deploy/argocd/application.yaml" ]; then
             sed -i "s|__SERVICE_NAME__|${SERVICE_NAME_LOWER}|g" deploy/argocd/application.yaml
+          fi
+
+          # Nexus GitOps manifests (.nexus/manifests) — POM-108 deploy contract.
+          # __APP_NAME__ must match the platform's sanitized application name
+          # (kebab-case), because the deployer health-gates on Deployment
+          # "app-{name}" and materializes the env Secret "app-{name}-{env}-env".
+          if [ -d ".nexus/manifests" ]; then
+            find .nexus/manifests -type f \( -name "*.yaml" -o -name "*.md" \) | while read f; do
+              sed -i "s|__APP_NAME__|${SERVICE_NAME_KEBAB}|g" "$f"
+              sed -i "s|__IMAGE_REPOSITORY__|${REGISTRY}/${SERVICE_NAME_KEBAB}-api|g" "$f"
+            done
+            echo "::notice::Nexus manifests bound to app-${SERVICE_NAME_KEBAB} (image ${REGISTRY}/${SERVICE_NAME_KEBAB}-api)"
           fi
 
       - name: Setup .NET

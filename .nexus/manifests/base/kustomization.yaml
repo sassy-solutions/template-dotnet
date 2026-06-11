@@ -1,0 +1,19 @@
+# Base kustomization for the Nexus platform GitOps deploy path (POM-108).
+# The platform creates an ArgoCD Application with a git-kustomize source
+# pointing at `.nexus/manifests/{envSlug}` and targetRevision = version tag.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+
+images:
+  # `nexus-app-image` is a symbolic name rewritten by this transform.
+  # - newName is substituted once at bootstrap: {REGISTRY_ENDPOINT}/{service}-api
+  # - newTag is bumped by cd.yml on every main build ("sha-xxxxxxxx"),
+  #   committed alongside deploy/values.yaml. A version tag therefore pins
+  #   the exact image that was built for that commit.
+  - name: nexus-app-image
+    newName: __IMAGE_REPOSITORY__
+    newTag: "latest"
