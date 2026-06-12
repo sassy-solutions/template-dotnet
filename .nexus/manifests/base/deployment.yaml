@@ -1,0 +1,90 @@
+# Deployment consumed by the Nexus platform GitOps deployer.
+# CONTRACT (KubernetesApplicationDeployer.DeployViaArgoCdAsync):
+#   - metadata.name MUST be "app-{sanitized-app-name}" — the platform's
+#     post-deploy health gate waits on exactly this Deployment name.
+#   - Env vars resolved by the platform (hierarchical configs + decrypted
+#     secrets) are materialized as Secret "app-{name}-{env}-env" and consumed
+#     via envFrom.secretRef in the per-environment overlay patches.
+#   - No Ingress here: the platform routes centrally via
+#     app.sassy.solutions/{orgId}/{appId}/{env} -> Service "app-{name}":80.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-__APP_NAME__
+  labels:
+    app.kubernetes.io/name: __APP_NAME__
+    app.kubernetes.io/component: api
+    app.kubernetes.io/managed-by: nexus-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: __APP_NAME__
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: __APP_NAME__
+        app.kubernetes.io/component: api
+    spec:
+      # NOTE: no serviceAccountName on purpose. Org namespaces ship
+      # "organization-sa" and environment namespaces ship "environment-sa";
+      # referencing either would break pod creation in the other namespace
+      # kind, so we rely on the namespace default ServiceAccount.
+      imagePullSecrets:
+        # Created by the platform (ArgoCdApplicationProvisioner.EnsureRegistryCredentialAsync).
+        - name: registry-credentials
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          # Symbolic ref — rewritten by the kustomize images transform in
+          # base/kustomization.yaml (registry/repo at bootstrap, tag by CI).
+          image: nexus-app-image
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Production
+            # Optional platform credentials secret (same convention as
+            # deploy/values.yaml). Degrades gracefully when absent; the
+            # platform can also inject Nexus__ApiKey via the env secret.
+            - name: Nexus__ApiKey
+              valueFrom:
+                secretKeyRef:
+                  name: nexus-credentials
+                  key: api-key
+                  optional: true
+          # Fits the tenant LimitRange defaults
+          # (defaultRequest 50m/64Mi, default limit 200m/256Mi).
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]

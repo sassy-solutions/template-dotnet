@@ -153,6 +153,15 @@ jobs:
           # Update the image tag in deploy/values.yaml
           sed -i "s|tag: \".*\"|tag: \"${IMAGE_TAG}\"|g" deploy/values.yaml
 
+          # Bump the kustomize image tag for the Nexus GitOps deploy path
+          # (.nexus/manifests, POM-108). A Nexus version tag pins this commit,
+          # so the manifests at that tag reference the image built from it.
+          if [ -f ".nexus/manifests/base/kustomization.yaml" ]; then
+            sed -i "s|newTag: .*|newTag: \"${IMAGE_TAG}\"|" .nexus/manifests/base/kustomization.yaml
+            echo "Updated .nexus/manifests/base/kustomization.yaml:"
+            grep -B1 "newTag:" .nexus/manifests/base/kustomization.yaml || true
+          fi
+
           # Show the change
           echo "Updated deploy/values.yaml:"
           grep -A2 "image:" deploy/values.yaml || true
@@ -165,6 +174,9 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git add deploy/values.yaml
+          if [ -f ".nexus/manifests/base/kustomization.yaml" ]; then
+            git add .nexus/manifests/base/kustomization.yaml
+          fi
           # [skip ci] prevents infinite loop when this commit triggers the workflow again
           git diff --staged --quiet || git commit -m "chore: update image to ${IMAGE_TAG} [skip ci]"
           git pull --rebase origin main && git push

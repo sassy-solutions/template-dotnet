@@ -22,10 +22,13 @@
     <PackageReference Include="AspNetCore.HealthChecks.UI.Client" Version="8.0.1" />
 
     <!-- Observability -->
-    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.0" />
-    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.15.0" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.0" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.15.0" />
+    <!-- 1.15.0 carries known vulnerabilities (GHSA-mr8r-92fq-pj8p, GHSA-q834-8qmm-v933,
+         GHSA-4625-4j76-fww9, GHSA-g94r-2vxg-569j) that fail the NuGet audit with
+         TreatWarningsAsErrors; pinned to the latest patched releases. -->
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
 
     <!-- Logging -->
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />

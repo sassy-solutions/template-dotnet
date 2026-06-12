@@ -67,7 +67,9 @@ builder.Services.AddHealthChecks()
 // API
 builder.Services.AddControllers(options =>
 {
-    options.Filters.AddNexusFilters();
+    // Nexus.Sdk >= 1.0.0-preview.146 exposes AddNexusFilters on MvcOptions
+    // (it wires the feature/track/authorize filters), not on FilterCollection.
+    options.AddNexusFilters();
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
