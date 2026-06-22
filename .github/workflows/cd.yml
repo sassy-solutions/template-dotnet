@@ -9,6 +9,19 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      ref:
+        description: >-
+          Branch name or commit SHA to build the image from. The image is
+          pushed as {registry}/{subdomain}-api:sha-{first 8 chars of the
+          RESOLVED commit SHA}. Leave blank to build the default branch HEAD.
+          Used by the Nexus platform to build a specific commit on demand
+          before deploying it (deploy-from-commit). On-demand builds only
+          build + push the image; they do NOT commit to the deploy branch or
+          trigger the dev/prod deploy jobs.
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -73,6 +86,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # On workflow_dispatch, build the requested ref (branch or SHA). When
+          # the input is blank (or any other trigger), an empty value tells
+          # checkout to use the event's default ref:
+          #   - push    -> the pushed commit (GITHUB_SHA)
+          #   - release -> the release tag
+          #   - dispatch (blank ref) -> the default branch HEAD
+          ref: ${{ inputs.ref }}
+          # Need full history so we can resolve an arbitrary ref to its commit
+          # SHA (a short SHA input, or a branch name) via `git rev-parse`.
+          fetch-depth: 0
 
       - name: Extract metadata
         id: meta
@@ -81,17 +105,30 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           REGISTRY: ${{ vars.REGISTRY_ENDPOINT }}
+          DISPATCH_REF: ${{ inputs.ref }}
         run: |
           # Get service name from repo (using env var to avoid injection)
           SERVICE_NAME="${GITHUB_REPOSITORY##*/}"
           SERVICE_NAME_KEBAB=$(echo "$SERVICE_NAME" | tr '[:upper:]' '[:lower:]' | tr '_' '-')
+
+          # Resolve the commit SHA that was actually checked out. HEAD points at
+          # the ref checkout resolved (the pushed commit, the release tag, the
+          # default branch HEAD, or the dispatched branch/SHA input). This is the
+          # SHA Nexus's BuildImageReference uses to compute the image tag, so the
+          # pushed tag MUST equal sha-{first8(resolved_sha)} for the ref built.
+          RESOLVED_SHA=$(git rev-parse HEAD)
+          SHORT_SHA="${RESOLVED_SHA:0:8}"
 
           # Determine version tag (using env var to avoid injection)
           if [ "$EVENT_NAME" = "release" ]; then
             # Sanitize tag: only allow alphanumeric, dots, hyphens
             VERSION=$(echo "$RELEASE_TAG" | tr -cd '[:alnum:].-')
           else
-            VERSION="sha-${GITHUB_SHA::8}"
+            # push and workflow_dispatch both tag by the resolved commit SHA.
+            # On push, HEAD == GITHUB_SHA so this is identical to the previous
+            # "sha-${GITHUB_SHA::8}" behavior. On dispatch, HEAD is the resolved
+            # input ref (branch HEAD or the given SHA).
+            VERSION="sha-${SHORT_SHA}"
           fi
 
           IMAGE="${REGISTRY}/${SERVICE_NAME_KEBAB}-api"
@@ -101,6 +138,7 @@ jobs:
           echo "image=$IMAGE" >> $GITHUB_OUTPUT
           echo "image_full=${IMAGE}:${VERSION}" >> $GITHUB_OUTPUT
 
+          echo "::notice::Building ref '${DISPATCH_REF:-<default>}' -> ${RESOLVED_SHA}"
           echo "::notice::Image: ${IMAGE}:${VERSION}"
 
       - name: Login to Scaleway Registry
@@ -140,7 +178,13 @@ jobs:
     name: Update Deployment
     needs: build-and-push
     runs-on: dotnet
-    if: github.ref == 'refs/heads/main' || github.event_name == 'release'
+    # Only the automatic push-to-main and release paths bump the deploy
+    # manifests + commit. On-demand workflow_dispatch builds are build+push
+    # ONLY: Nexus polls the registry for the resulting tag and deploys it via
+    # its own GitOps path, so we must NOT commit to main on dispatch.
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      github.event_name == 'release'
 
     steps:
       - name: Checkout
@@ -203,7 +247,9 @@ jobs:
     needs: [build-and-push, update-deployment]
     runs-on: dotnet
     environment: dev
-    if: github.ref == 'refs/heads/main'
+    # Auto-deploy to dev only on push-to-main. On-demand dispatch builds are
+    # deployed by Nexus, not by this workflow.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - name: Trigger ArgoCD Sync
