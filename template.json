@@ -35,7 +35,7 @@
     "**/Dockerfile"
   ],
   "nexus_api_version": "1.0.0",
-  "nexus_base_url": "http://nexus-api.nexus-live.svc.cluster.local",
+  "nexus_base_url": "http://nexus-api-live.nexus-live.svc.cluster.local",
   "infrastructure_repo": "sassy-solutions/Infrastructure",
   "helm_chart_version": "1.0.0"
 }

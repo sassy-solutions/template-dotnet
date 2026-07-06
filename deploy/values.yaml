@@ -103,7 +103,7 @@ env:
         key: api-key
         optional: true  # Graceful degradation when secret not configured
   - name: Nexus__BaseUrl
-    value: "http://nexus-api.nexus-live.svc.cluster.local"
+    value: "http://nexus-api-live.nexus-live.svc.cluster.local"
 
 # Metrics for Prometheus
 metrics:
