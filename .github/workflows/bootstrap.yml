@@ -69,6 +69,20 @@ jobs:
           # Step 2: Remove remaining hyphens/underscores (e.g., before digits)
           SERVICE_NAME=$(echo "$SERVICE_NAME_LOWER" | sed -r 's/(^|[-_])([a-z])/\U\2/g' | sed 's/[-_]//g')
 
+          # Step 3: Strip any char that is not a C# identifier char.
+          SERVICE_NAME=$(echo "$SERVICE_NAME" | sed 's/[^A-Za-z0-9]//g')
+
+          # Step 4: A C# namespace/identifier cannot be empty or start with a digit.
+          # An all-numeric repo name (e.g. "200720260913") would otherwise produce
+          # `namespace 200720260913.Api` — uncompilable — so the image never builds and
+          # the deploy ImagePullBackOffs forever. Prefix "Svc" to keep it valid. The
+          # kebab/lower names below stay numeric, so the DNS host and image tag are
+          # unaffected; only the C# namespace/assembly name is guarded.
+          if [ -z "$SERVICE_NAME" ] || echo "$SERVICE_NAME" | grep -qE '^[0-9]'; then
+            SERVICE_NAME="Svc${SERVICE_NAME}"
+            echo "::warning::Repo name is empty or digit-leading; using C# namespace '${SERVICE_NAME}' (valid identifier)."
+          fi
+
           # Convert to kebab-case for URLs (already lowercase with hyphens)
           SERVICE_NAME_KEBAB=$(echo "$SERVICE_NAME_LOWER" | tr '_' '-')
 
