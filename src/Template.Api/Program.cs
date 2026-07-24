@@ -7,6 +7,7 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Events;
+using Template.Api.Infrastructure.Auth;
 using Template.Api.Infrastructure.Swagger;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -113,6 +114,11 @@ builder.Services.AddSwaggerGen(options =>
 // Nexus SDK — one-liner setup for features, tracking, billing, config, health
 builder.Services.AddNexus(builder.Configuration);
 
+// Zitadel JWT-bearer auth — validates issuer + per-environment audience + role claims.
+// No-op unless Zitadel:Authority is configured (injected at deploy) and not in Development,
+// so local runs stay open. Auth is opt-in per endpoint via [Authorize] / [NexusAuthorize].
+builder.Services.AddZitadelAuth(builder.Configuration, builder.Environment);
+
 var app = builder.Build();
 
 // =========================
@@ -149,6 +155,11 @@ if (enableSwaggerUi)
 }
 
 app.UseRouting();
+
+// Zitadel JWT-bearer auth (no-op when Zitadel is not configured — see AddZitadelAuth).
+// Health probes and public routes stay anonymous; controllers opt in with [Authorize].
+app.UseAuthentication();
+app.UseAuthorization();
 
 // =========================
 // Health Check Endpoints
