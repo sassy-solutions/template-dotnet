@@ -75,6 +75,14 @@ jobs:
     name: Build & Push Image
     needs: preflight
     runs-on: ubuntu-latest
+    # Mirrors the workflow-level grants and adds id-token: write, which the
+    # REGISTRY_KIND=scw-oidc login below needs to mint this run's OIDC identity.
+    # Do NOT add `environment:` to this job: it reshapes the OIDC `sub` claim
+    # and the Nexus exchange refuses the token.
+    permissions:
+      contents: write
+      packages: read
+      id-token: write
     if: |
       needs.preflight.outputs.can_deploy == 'true' &&
       github.repository != 'sassy-solutions/template-dotnet'
@@ -141,12 +149,103 @@ jobs:
           echo "::notice::Building ref '${DISPATCH_REF:-<default>}' -> ${RESOLVED_SHA}"
           echo "::notice::Image: ${IMAGE}:${VERSION}"
 
+      # Registry login — template CI contract v2. `vars.REGISTRY_KIND` selects
+      # how this run authenticates to the registry:
+      #   unset      legacy: the stored secrets.SCW_SECRET_KEY (unchanged)
+      #   scw-oidc   keyless: this run's GitHub OIDC identity is exchanged with
+      #              Nexus for an ephemeral registry credential, so the repo
+      #              holds no registry secret at all.
+      # Anything else is a stamping bug and fails the job rather than silently
+      # falling back to an unauthenticated push.
+      - name: Check registry kind
+        env:
+          REGISTRY_KIND: ${{ vars.REGISTRY_KIND }}
+        run: |
+          set -euo pipefail
+          case "${REGISTRY_KIND:-}" in
+            ''|scw-oidc) ;;
+            *)
+              echo "::error::Unknown REGISTRY_KIND '${REGISTRY_KIND}' — expected 'scw-oidc' or unset"
+              exit 1
+              ;;
+          esac
+
       - name: Login to Scaleway Registry
+        if: vars.REGISTRY_KIND == ''
         uses: docker/login-action@v3
         with:
           registry: ${{ vars.REGISTRY_ENDPOINT }}
           username: nologin
           password: ${{ secrets.SCW_SECRET_KEY }}
+
+      - name: Login to Scaleway Registry (Nexus OIDC exchange)
+        if: vars.REGISTRY_KIND == 'scw-oidc'
+        env:
+          NEXUS_API_URL: ${{ vars.NEXUS_API_URL }}
+          REGISTRY_ENDPOINT: ${{ vars.REGISTRY_ENDPOINT }}
+        run: |
+          set -euo pipefail
+
+          NEXUS_API_URL="${NEXUS_API_URL:-https://api.sassy.solutions}"
+
+          # Only branch/tag runs carry an exchangeable identity: pull_request
+          # runs (and forks) are refused by Nexus by design.
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "::error::No GitHub OIDC token available — this job needs 'id-token: write' permission"
+            exit 1
+          fi
+
+          # The audience is pinned: Nexus refuses a token minted for any other.
+          ID_TOKEN=$(curl -sS --fail \
+            -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=nexus-registry" | jq -r '.value')
+          echo "::add-mask::${ID_TOKEN}"
+          if [ -z "${ID_TOKEN}" ] || [ "${ID_TOKEN}" = "null" ]; then
+            echo "::error::GitHub returned an empty OIDC id-token"
+            exit 1
+          fi
+
+          BODY=$(mktemp)
+          STATUS=$(curl -sS -o "${BODY}" -w '%{http_code}' \
+            -X POST "${NEXUS_API_URL%/}/api/v1/registry/ci-token" \
+            -H 'Content-Type: application/json' \
+            --data "$(jq -nc --arg token "${ID_TOKEN}" '{token: $token}')")
+
+          if [ "${STATUS}" != "200" ]; then
+            # 401/403 bodies are deliberately generic; 503 carries an
+            # operator-facing remediation in `detail` — surface both verbatim.
+            TITLE=$(jq -r '.title // empty' "${BODY}" 2>/dev/null || echo '')
+            DETAIL=$(jq -r '.detail // empty' "${BODY}" 2>/dev/null || echo '')
+            echo "::error::Nexus registry token exchange failed (HTTP ${STATUS})"
+            if [ -n "${TITLE}" ]; then echo "::error::${TITLE}"; fi
+            if [ -n "${DETAIL}" ]; then echo "::error::${DETAIL}"; fi
+            if [ -z "${TITLE}${DETAIL}" ]; then head -c 2000 "${BODY}"; echo; fi
+            rm -f "${BODY}"
+            exit 1
+          fi
+
+          # Mask the credential before it is read anywhere else.
+          PASSWORD=$(jq -r '.password' "${BODY}")
+          echo "::add-mask::${PASSWORD}"
+          ENDPOINT=$(jq -r '.endpoint' "${BODY}")
+          USERNAME=$(jq -r '.username' "${BODY}")
+          EXPIRES=$(jq -r '.expiresInSeconds // empty' "${BODY}")
+          rm -f "${BODY}"
+
+          if [ -z "${ENDPOINT}" ] || [ "${ENDPOINT}" = "null" ] ||
+             [ -z "${PASSWORD}" ] || [ "${PASSWORD}" = "null" ]; then
+            echo "::error::Nexus returned an incomplete credential (endpoint or password missing)"
+            exit 1
+          fi
+
+          # The image name is built from vars.REGISTRY_ENDPOINT (the stamped
+          # contract), so a mismatch means the push lands nowhere useful.
+          if [ "${ENDPOINT}" != "${REGISTRY_ENDPOINT}" ]; then
+            echo "::warning::Registry endpoint drift — Nexus issued a credential for '${ENDPOINT}' but this repo pushes to vars.REGISTRY_ENDPOINT='${REGISTRY_ENDPOINT}'. The push will fail or target the wrong registry until REGISTRY_ENDPOINT is re-stamped."
+          fi
+
+          printf '%s' "${PASSWORD}" | docker login "${ENDPOINT}" --username "${USERNAME}" --password-stdin
+          echo "::notice::Registry login OK via Nexus OIDC exchange (${ENDPOINT}, expires in ${EXPIRES:-?}s)"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
