@@ -35,7 +35,7 @@ env:
 jobs:
   check-bootstrap:
     name: Check Bootstrap
-    runs-on: dotnet
+    runs-on: ubuntu-latest
     outputs:
       bootstrapped: ${{ steps.check.outputs.bootstrapped }}
     steps:
@@ -55,7 +55,7 @@ jobs:
     name: Preflight Check
     needs: check-bootstrap
     if: needs.check-bootstrap.outputs.bootstrapped == 'true'
-    runs-on: dotnet
+    runs-on: ubuntu-latest
     outputs:
       can_deploy: ${{ steps.check.outputs.can_deploy }}
     steps:
@@ -74,7 +74,7 @@ jobs:
   build-and-push:
     name: Build & Push Image
     needs: preflight
-    runs-on: dotnet
+    runs-on: ubuntu-latest
     if: |
       needs.preflight.outputs.can_deploy == 'true' &&
       github.repository != 'sassy-solutions/template-dotnet'
@@ -177,7 +177,7 @@ jobs:
   update-deployment:
     name: Update Deployment
     needs: build-and-push
-    runs-on: dotnet
+    runs-on: ubuntu-latest
     # Only the automatic push-to-main and release paths bump the deploy
     # manifests + commit. On-demand workflow_dispatch builds are build+push
     # ONLY: Nexus polls the registry for the resulting tag and deploys it via
@@ -249,7 +249,7 @@ jobs:
   deploy-dev:
     name: Deploy to Dev
     needs: [build-and-push, update-deployment]
-    runs-on: dotnet
+    runs-on: ubuntu-latest
     environment: dev
     # Auto-deploy to dev only on push-to-main. On-demand dispatch builds are
     # deployed by Nexus, not by this workflow.
@@ -265,7 +265,7 @@ jobs:
   deploy-prod:
     name: Deploy to Production
     needs: [build-and-push, update-deployment]
-    runs-on: dotnet
+    runs-on: ubuntu-latest
     environment: prod
     # Only deploy to prod on release
     if: github.event_name == 'release'

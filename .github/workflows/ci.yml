@@ -23,7 +23,7 @@ env:
 jobs:
   check-bootstrap:
     name: Check Bootstrap
-    runs-on: dotnet
+    runs-on: ubuntu-latest
     outputs:
       bootstrapped: ${{ steps.check.outputs.bootstrapped }}
     steps:
@@ -43,7 +43,7 @@ jobs:
     name: Build & Test
     needs: check-bootstrap
     if: needs.check-bootstrap.outputs.bootstrapped == 'true'
-    runs-on: dotnet
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -83,7 +83,7 @@ jobs:
     name: Lint & Format
     needs: check-bootstrap
     if: needs.check-bootstrap.outputs.bootstrapped == 'true'
-    runs-on: dotnet
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -104,7 +104,7 @@ jobs:
     name: Security Scan
     needs: check-bootstrap
     if: needs.check-bootstrap.outputs.bootstrapped == 'true' && vars.SKIP_SECURITY_SCAN != 'true'
-    runs-on: dotnet
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
