@@ -11,13 +11,9 @@ COPY nuget.config ./
 COPY src/Template.Api/*.csproj ./src/Template.Api/
 COPY tests/Template.UnitTests/*.csproj ./tests/Template.UnitTests/
 
-# Restore dependencies (authenticate GitHub Packages via build secret)
-RUN --mount=type=secret,id=github_token \
-    TOKEN=$(cat /run/secrets/github_token 2>/dev/null) && \
-    if [ -n "$TOKEN" ]; then \
-      dotnet nuget update source github -u sassy-solutions -p "$TOKEN" --store-password-in-clear-text --configfile nuget.config; \
-    fi && \
-    dotnet restore
+# Restore dependencies — nuget.org only. The SDK ships publicly as
+# SassySolutions.Nexus.Sdk, so tenant builds need no credential of any kind.
+RUN dotnet restore
 
 # Copy all source code
 COPY . .
