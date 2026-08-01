@@ -263,8 +263,6 @@ jobs:
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
             INFORMATIONAL_VERSION=${{ steps.meta.outputs.version }}+${{ github.sha }}
-          secrets: |
-            github_token=${{ secrets.GITHUB_TOKEN }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
