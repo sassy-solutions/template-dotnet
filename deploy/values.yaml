@@ -7,7 +7,7 @@ app:
   version: "1.0.0"
 
 image:
-  repository: ""  # Will be set by bootstrap workflow (e.g., rg.fr-par.scw.cloud/sassy/accelerate-api)
+  repository: ""  # Will be set by bootstrap workflow
   tag: "latest"
   pullPolicy: IfNotPresent
 
@@ -102,8 +102,10 @@ env:
         name: nexus-credentials
         key: api-key
         optional: true  # Graceful degradation when secret not configured
-  - name: Nexus__BaseUrl
-    value: "http://nexus-api-live.nexus-live.svc.cluster.local"
+  # Nexus__BaseUrl n'est PAS déclaré ici. La plateforme l'injecte au déploiement
+  # (KubernetesApplicationDeployer, Nexus.Platform.Kubernetes) depuis l'adresse
+  # configurée du site — ce chart n'a donc plus à connaître notre topologie
+  # interne, et ce dépôt étant public, il ne doit pas la porter.
 
 # Metrics for Prometheus
 metrics:

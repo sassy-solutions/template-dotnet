@@ -121,7 +121,7 @@ All methods return `NexusResult<T>` (never throw for HTTP errors).
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `Nexus__BaseUrl` | Nexus API URL | `http://nexus-api.nexus-live.svc.cluster.local` |
+| `Nexus__BaseUrl` | Nexus API URL, injected by the platform at deploy time. No default — the SDK fails fast if unset. | — |
 | `Nexus__ApiKey` | API key (`nxs_` prefix) | Empty (set via K8s secret) |
 | `Nexus__TimeoutSeconds` | HTTP timeout | `10` |
 
