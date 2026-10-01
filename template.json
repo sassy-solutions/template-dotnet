@@ -18,11 +18,26 @@
     }
   },
   "files_to_rename": [
-    { "from": "Template.sln", "to": "{{SERVICE_NAME}}.sln" },
-    { "from": "src/Template.Api", "to": "src/{{SERVICE_NAME}}.Api" },
-    { "from": "src/Template.Api/Template.Api.csproj", "to": "src/{{SERVICE_NAME}}.Api/{{SERVICE_NAME}}.Api.csproj" },
-    { "from": "tests/Template.UnitTests", "to": "tests/{{SERVICE_NAME}}.UnitTests" },
-    { "from": "tests/Template.UnitTests/Template.UnitTests.csproj", "to": "tests/{{SERVICE_NAME}}.UnitTests/{{SERVICE_NAME}}.UnitTests.csproj" }
+    {
+      "from": "Template.sln",
+      "to": "{{SERVICE_NAME}}.sln"
+    },
+    {
+      "from": "src/Template.Api",
+      "to": "src/{{SERVICE_NAME}}.Api"
+    },
+    {
+      "from": "src/Template.Api/Template.Api.csproj",
+      "to": "src/{{SERVICE_NAME}}.Api/{{SERVICE_NAME}}.Api.csproj"
+    },
+    {
+      "from": "tests/Template.UnitTests",
+      "to": "tests/{{SERVICE_NAME}}.UnitTests"
+    },
+    {
+      "from": "tests/Template.UnitTests/Template.UnitTests.csproj",
+      "to": "tests/{{SERVICE_NAME}}.UnitTests/{{SERVICE_NAME}}.UnitTests.csproj"
+    }
   ],
   "files_to_search_replace": [
     "**/*.cs",
@@ -35,7 +50,5 @@
     "**/Dockerfile"
   ],
   "nexus_api_version": "1.0.0",
-  "nexus_base_url": "http://nexus-api-live.nexus-live.svc.cluster.local",
-  "infrastructure_repo": "sassy-solutions/Infrastructure",
   "helm_chart_version": "1.0.0"
 }

@@ -22,7 +22,7 @@ spec:
       ref: values
 
     # Source 2: Infrastructure Helm chart
-    - repoURL: https://github.com/sassy-solutions/Infrastructure.git
+    - repoURL: https://github.com/sassy-solutions/template-Infrastructure.git
       targetRevision: HEAD
       path: helm/charts/dotnet-microservice
       helm:
