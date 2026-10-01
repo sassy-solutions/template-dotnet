@@ -27,4 +27,22 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.11.20" PrivateAssets="all" />
   </ItemGroup>
+
+  <!--
+    The Nexus SDK is consumed as SassySolutions.Nexus.Sdk (nuget.org, owner SassySolutions).
+    Any package id starting with "Nexus." is refused, for two reasons:
+      - the retired internal Nexus.Sdk (GitHub Packages) ships the same assembly name, and a
+        graph holding both compiles against one and runs the other, silently;
+      - on nuget.org, "Nexus.Sdk" / "Nexus.SDK" belongs to an unrelated publisher.
+    A warning-as-error on MSB3277 does NOT catch either case (proven: the SDK's package
+    conflict resolution arbitrates the duplicate before MSB3277 is ever evaluated).
+  -->
+  <Target Name="ForbidUnscopedNexusPackages" BeforeTargets="CollectPackageReferences;Build">
+    <ItemGroup>
+      <_ForbiddenNexusPackage Include="@(PackageReference)"
+                              Condition="$([System.String]::Copy('%(Identity)').ToLowerInvariant().StartsWith('nexus.'))" />
+    </ItemGroup>
+    <Error Condition="'@(_ForbiddenNexusPackage)' != ''"
+           Text="Package '@(_ForbiddenNexusPackage)' is refused: the Nexus SDK is 'SassySolutions.Nexus.Sdk' on nuget.org. An id starting with 'Nexus.' is either the retired internal package or an unrelated third party's." />
+  </Target>
 </Project>

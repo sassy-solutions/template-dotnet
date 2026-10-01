@@ -13,7 +13,6 @@ on:
 
 permissions:
   contents: read
-  packages: read
 
 env:
   DOTNET_VERSION: '9.0.x'
@@ -54,9 +53,6 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Authenticate GitHub Packages
-        run: dotnet nuget update source github --username sassy-solutions --password "${{ secrets.GITHUB_TOKEN }}" --store-password-in-clear-text --configfile nuget.config
-
       - name: Restore dependencies
         run: dotnet restore
 
@@ -94,9 +90,6 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Authenticate GitHub Packages
-        run: dotnet nuget update source github --username sassy-solutions --password "${{ secrets.GITHUB_TOKEN }}" --store-password-in-clear-text --configfile nuget.config
-
       - name: Check formatting
         run: dotnet format --verify-no-changes --verbosity diagnostic
 
@@ -114,9 +107,6 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Authenticate GitHub Packages
-        run: dotnet nuget update source github --username sassy-solutions --password "${{ secrets.GITHUB_TOKEN }}" --store-password-in-clear-text --configfile nuget.config
 
       - name: Restore
         run: dotnet restore
