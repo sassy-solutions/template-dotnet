@@ -85,15 +85,20 @@ public class HealthCheckEndpointsTests : IClassFixture<WebApplicationFactory<Pro
     }
 
     [Fact]
-    public async Task HealthReadyEndpoint_OnlyIncludesReadyTaggedChecks()
+    public async Task HealthReadyEndpoint_DoesNotGateReadinessOnTheControlPlane()
     {
         // Act
         var response = await _client.GetAsync("/health/ready");
         var content = await response.Content.ReadAsStringAsync();
 
         // Assert
-        // The /health/ready endpoint should only include checks tagged as "ready"
-        content.Should().Contain("nexus", "should include the 'nexus' health check which is tagged as 'ready'");
+        // The SDK tags its control-plane check "nexus", deliberately NOT "ready"
+        // (Nexus.Sdk NexusServiceCollectionExtensions, 2026-07-06): a tenant pod's readiness
+        // must not hard-depend on the platform API. Gating on it drains traffic from healthy
+        // pods on a platform blip, and the SDK's ~3 s reachability timeout can exceed the
+        // probe's — pods stuck 0/1. The check still shows on /health (see above).
+        content.Should().NotContain("nexus",
+            "readiness must not depend on the Nexus control plane being reachable");
     }
 
     [Fact]
