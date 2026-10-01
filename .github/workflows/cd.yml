@@ -25,7 +25,6 @@ on:
 
 permissions:
   contents: write
-  packages: read
 
 env:
   DOTNET_VERSION: '9.0.x'
@@ -81,7 +80,6 @@ jobs:
     # and the Nexus exchange refuses the token.
     permissions:
       contents: write
-      packages: read
       id-token: write
     if: |
       needs.preflight.outputs.can_deploy == 'true' &&

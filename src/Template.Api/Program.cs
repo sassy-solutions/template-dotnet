@@ -59,7 +59,9 @@ builder.Logging.AddOpenTelemetry(logging =>
 
 // Health Checks
 // The "self" check always returns healthy and verifies the app is responsive
-// Nexus health check is registered automatically by AddNexus() below (tagged as "ready")
+// The Nexus health check is registered by AddNexus() below, tagged "nexus" and NOT "ready":
+// a pod's readiness must not depend on the control plane being reachable (see
+// HealthReadyEndpoint_DoesNotGateReadinessOnTheControlPlane). It still shows on /health.
 builder.Services.AddHealthChecks()
     .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("Application is running"));
 // Add additional health checks here as needed:
@@ -68,7 +70,7 @@ builder.Services.AddHealthChecks()
 // API
 builder.Services.AddControllers(options =>
 {
-    // Nexus.Sdk >= 1.0.0-preview.146 exposes AddNexusFilters on MvcOptions
+    // The Nexus SDK (SassySolutions.Nexus.Sdk) exposes AddNexusFilters on MvcOptions
     // (it wires the feature/track/authorize filters), not on FilterCollection.
     options.AddNexusFilters();
 });
